@@ -49,7 +49,7 @@ def chat_and_detect(user_message, history):
                 "⚠️ Adversarial prompt detected! The request was not processed. Please remove harmful speech from the prompt. And try again!"
                 "</p>"
             )
-            history.append(("Bot", f"Adversarial prompt detected! I'm sorry, I cannot process this request. Please try again."))
+            history.append(("Bot", f"Adversarial prompt detected! I'm sorry, but I can't help with that."))
             return history, history, flag_note
         else:
             flag_note = (
