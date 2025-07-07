@@ -14,6 +14,8 @@ from peft import PeftModel
 load_dotenv()
 MODEL_DIR = os.getenv("MODEL_PATH", "outputs/electra/best_model")
 BASE_MODEL = "google/electra-small-discriminator"
+# Initialize OpenAI API key
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # OpenAI Python client
 
 # Set up MLflow
 mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", ""))
@@ -25,9 +27,7 @@ detector = PeftModel.from_pretrained(base, MODEL_DIR)
 detector.eval()
 tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
 
-# Initialize OpenAI API key
-# openai.api_key = os.getenv("OPENAI_API_KEY")
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # OpenAI Python client
+
 
 def chat_and_detect(user_message, history):
     # history = history or []
