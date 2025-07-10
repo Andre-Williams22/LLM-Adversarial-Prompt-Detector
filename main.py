@@ -14,12 +14,22 @@ from peft import PeftModel
 load_dotenv()
 MODEL_DIR = os.getenv("MODEL_PATH", "outputs/electra/best_model")
 BASE_MODEL = "google/electra-small-discriminator"
-# Initialize OpenAI API key
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # OpenAI Python client
 
 # Set up MLflow
 mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", ""))
 mlflow.set_experiment("adversarial_prompt_detector")
+
+# ─── Load threshold
+THRESHOLD_PATH = os.path.join(MODEL_DIR, "threshold.txt")
+try:
+    with open(THRESHOLD_PATH, "r") as f:
+        ADV_THRESHOLD = float(f.read().strip())
+except FileNotFoundError:
+    ADV_THRESHOLD = 0.5
+    print(f"⚠️  threshold.txt not found, defaulting to {ADV_THRESHOLD}")
+
+# Initialize OpenAI API key
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))  # OpenAI Python client
 
 # Load detector model and tokenizer
 base = AutoModelForSequenceClassification.from_pretrained(BASE_MODEL)
@@ -28,21 +38,23 @@ detector.eval()
 tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
 
 
-
 def chat_and_detect(user_message, history):
     # history = history or []
     # history.append(("User", user_message))
-
     try:
-        # Detection logic using the pre-trained detector model
-        inputs = tokenizer(user_message, return_tensors="pt", truncation=True, padding=True)
+        # Tokenize 
+        inputs = tokenizer(user_message, return_tensors="pt", truncation=True, padding=True).to(device=detector.device)
+        # Run detector model 
         with torch.no_grad():
             outputs = detector(**inputs)
-            scores = torch.nn.functional.softmax(outputs.logits, dim=-1)
-            print("scores", scores)
-            print("scores", scores[0][1])
-            is_adversarial = scores[0][1] > 0.5  # Assuming index 1 is adversarial
-            
+            probs = torch.softmax(outputs.logits, dim=-1)
+            # adverarial class is index 0 
+            probs_adv = probs[0, 0].item()
+            is_adversarial = probs_adv > ADV_THRESHOLD
+        
+        # Detection logic using the pre-trained detector model
+        inputs = tokenizer(user_message, return_tensors="pt", truncation=True, padding=True)
+
         if is_adversarial:
             flag_note = (
                 '<p style="color: red; font-weight: bold; font-size: 18px;">'
