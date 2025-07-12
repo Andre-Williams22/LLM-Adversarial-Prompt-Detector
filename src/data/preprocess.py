@@ -1,24 +1,56 @@
+import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-# Read in the cleaned dataset
-data = pd.read_csv('/Users/andrewilliams/Documents/development/projects/LLM-Adversarial-Prompt-Detector/src/data/wildjailbreak_cleaned.csv')
+# 📁 Define folder path
+processed_folder = '.p/data/preprocessed'
 
-# Drop duplicates and nulls
-data = data.drop_duplicates().dropna()
+# Ensure the directory exists
+os.makedirs(processed_folder, exist_ok=True)
 
-# Map labels
-data['label'] = data['label'].map({'adversarial': 1, 'safe': 0})
+# 📦 Load all CSVs in the folder
+csv_files = [f for f in os.listdir(processed_folder) if f.endswith('.csv')]
+if not csv_files:
+    raise FileNotFoundError(f"No CSV files found in {processed_folder}. Please add the necessary files.")
 
-# Split the data into features and target
-X = data.drop('label', axis=1)
-y = data['label']
+# 🧬 Combine all datasets
+datasets = [pd.read_csv(os.path.join(processed_folder, file)) for file in csv_files]
+combined_dataset = pd.concat(datasets, ignore_index=True)
+print(f"✅ Combined dataset shape: {combined_dataset.shape}")
 
-# Split the data into training and testing sets
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# 🧹 Standardize labels
+combined_dataset["label"] = combined_dataset["label"].replace("safe", "benign")
 
-# Save the splits to data/processed/
-X_train.to_csv('/Users/andrewilliams/Documents/development/projects/LLM-Adversarial-Prompt-Detector/src/data/processed/X_train.csv', index=False)
-X_test.to_csv('/Users/andrewilliams/Documents/development/projects/LLM-Adversarial-Prompt-Detector/src/data/processed/X_test.csv', index=False)
-y_train.to_csv('/Users/andrewilliams/Documents/development/projects/LLM-Adversarial-Prompt-Detector/src/data/processed/y_train.csv', index=False)
-y_test.to_csv('/Users/andrewilliams/Documents/development/projects/LLM-Adversarial-Prompt-Detector/src/data/processed/y_test.csv', index=False)
+# 🔍 Check label distribution
+print("🔢 Label distribution (original):")
+print(combined_dataset["label"].value_counts())
+
+# ❌ Drop duplicate prompts to prevent leakage
+combined_dataset = combined_dataset.drop_duplicates(subset=["prompt"])
+print(f"🧹 After deduplication: {combined_dataset.shape}")
+
+# 🔁 Stratified train-test split
+X = combined_dataset["prompt"]
+y = combined_dataset["label"]
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, stratify=y, random_state=42
+)
+
+# 🧪 Verify no overlap
+overlap = set(X_train) & set(X_test)
+print(f"🚨 Overlap between train and test: {len(overlap)}")  # Should be 0
+
+# 📈 Check class balance
+print("✅ Train label distribution:")
+print(y_train.value_counts(normalize=True))
+print("✅ Test label distribution:")
+print(y_test.value_counts(normalize=True))
+
+# 💾 Save clean datasets
+pd.DataFrame({'prompt': X_train, 'label': y_train}).to_csv(os.path.join(processed_folder, 'train_data.csv'), index=False)
+pd.DataFrame({'prompt': X_test, 'label': y_test}).to_csv(os.path.join(processed_folder, 'test_data.csv'), index=False)
+
+print("📁 Clean train/test splits saved to:")
+print(f" - {os.path.join(processed_folder, 'train_data.csv')}")
+print(f" - {os.path.join(processed_folder, 'test_data.csv')}")
