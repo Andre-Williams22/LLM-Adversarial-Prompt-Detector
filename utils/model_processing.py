@@ -1,9 +1,19 @@
 from main import * 
 import time 
 import mlflow 
+import datetime 
+import numpy as np
 import whylogs as why
 from transformers import pipeline
 from prometheus_client import Counter, Histogram, start_http_server
+
+
+prediction_counter = Counter('model_prediction_total', 'Total number of model predictions made')
+prediction_latency = Histogram('model_prediction_latency_seconds', 'Latency of model predictions in seconds')
+
+# Start prometheus HTTP Serer
+start_http_server(8000) # Expose metrics on port 8000
+
 
 def load_models():
     """
@@ -18,10 +28,19 @@ def load_models():
     }
 
     print("Models loaded successfully!")
+    return detectors 
 
-def detect_adversarial_prompt(prompt):
+@prediction_latency.time() # Automatically measures latency
+def detect_adversarial_prompt(prompt, detectors):
     """ Detects adversarial prompts using multiple detectors. """
-    if not isinstance(prompt, str):
+    prediction_counter.inc() # Increment prediction counter
+
+    # Log the prompt using whylogs
+    profile_result = why.log({"prompt": prompt})
+    print(profile_result.view().to_pandas())
+
+
+    if not isinstance(prompt, (str)):
         raise ValueError("Prompt must be a string.")
     
     scores = []
@@ -32,18 +51,15 @@ def detect_adversarial_prompt(prompt):
                 label_mapping = {"LABEL_0": "safe", "LABEL_1": "adversarial"}
                 # Pass the prompt directly as a string
                 result = detector(prompt)
-                print(f"Result from {name}: {result}")
                 # Ensure proper slicing of nested list structure
                 if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
                     result = result[0]  
                 # Extract the score for the adversarial label (assuming label index 1 is adversarial)
                 adversarial_score = next((item["score"] for item in result if label_mapping.get(item["label"]) == "adversarial"), 0)
-                print(name, "adversarial_score:", adversarial_score)
-                print(" ")
+
             elif name == "tox_bert":
                 # Pass the prompt directly as a string
                 result = detector(prompt)
-                print(f"Result from {name}: {result}")
                 # Handle nested list structure
                 if isinstance(result, list) and isinstance(result[0], list):
                     result = result[0]  # Access the first element of the outer list
@@ -53,7 +69,6 @@ def detect_adversarial_prompt(prompt):
                 print(" ")
             elif name == "offensive_roberta":
                 result = detector(prompt)
-                print(f"Result from {name}: {result}")
                 if isinstance(result, list) and isinstance(result[0], list):
                     result = result[0]
                 adversarial_score = next((item["score"] for item in result if item["label"] == "offensive"), 0.0)
@@ -64,7 +79,6 @@ def detect_adversarial_prompt(prompt):
                 result = detector(prompt, candidate_labels=["toxic", "safe"])
                 if isinstance(result, list) and isinstance(result[0], list):
                     result = [item for sublist in result for item in sublist]  # Flatten the list
-                print(f"Result from {name}: {result}")
                 adversarial_score = result["scores"][1]
                 print(name, "adversarial_score:", adversarial_score)
             else:
@@ -77,6 +91,25 @@ def detect_adversarial_prompt(prompt):
 
     # Apply voting mechanism to determine if the prompt is adversarial
     is_adv, reasoning = is_adversarial(scores)
+
+    # MLflow logging
+    with mlflow.start_run():
+        mlflow.log_param("prompt", prompt)
+        mlflow.log_param("reasoning", reasoning)
+        for idx, (name, score) in enumerate(zip(detectors.keys(), scores)):
+            # Log the model name alongside the score
+            mlflow.log_metric(f"{name}_adversarial_score", score)
+            mlflow.log_param("model_name", name)
+                # If you want to log reasoning, include it in the data dictionary
+            profile = why.log({"model_name": name, "prompt": prompt, "adversarial_score": score, "reasoning": reasoning})
+            # Write the profile to a specified path
+            profile.view().write("whylogs_adversarial_detection_path")
+
+    # Whylogs logging
+    # If you want to log reasoning, include it in the data dictionary
+    profile = why.log({"prompt": prompt, "scores": scores, "reasoning": reasoning})
+    # Write the profile to a specified path
+    profile.view().write("whylogs_adversarial_detection_path")
 
     return is_adv, reasoning
 
@@ -111,6 +144,7 @@ def is_adversarial(scores, threshold=0.5):
             reasoning["decision"] = True
             reasoning["reason"] = f"Model {i} exceeded threshold confidently."
             return True, reasoning
+
         if model_score > 0.4:
             vote.append(model_score)
 

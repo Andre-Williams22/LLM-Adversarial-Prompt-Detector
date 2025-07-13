@@ -19,12 +19,12 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", ""))
 mlflow.set_experiment("adversarial_prompt_detector")
 
-
-# Kick off heavyweight model loading in the background
-threading.Thread(target=load_models, daemon=True).start()
+# Initialize detectors globally
+detectors = load_models()
 
 # Build FastAPI + Gradio app
 app = FastAPI()
+
 
 @app.get("/health")
 def health_check():
@@ -42,7 +42,7 @@ def chat_and_detect(user_message, history):
 
     try:
         # 1. Check adversarial prompt
-        is_adv, reasoning = detect_adversarial_prompt(user_message)
+        is_adv, reasoning = detect_adversarial_prompt(user_message, detectors)
         print("reasoning", reasoning)
         scores = reasoning["scores"]
         print("scores", scores)

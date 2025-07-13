@@ -3,6 +3,12 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# custom
+.DS_Store
+/data
+/mlruns
+/wandb
+
 # C extensions
 *.so
 
