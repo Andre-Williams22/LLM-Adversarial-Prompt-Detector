@@ -26,6 +26,13 @@ detectors = load_models()
 # Build FastAPI + Gradio app
 app = FastAPI()
 
+@app.get("/favicon.ico")
+async def favicon():
+    """Simple favicon to prevent 404 errors"""
+    # Return a simple 1x1 transparent PNG
+    favicon_data = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xdb\x00\x00\x00\x00IEND\xaeB`\x82'
+    return Response(content=favicon_data, media_type="image/png")
+
 @app.get("/metrics")
 def metrics():
     """Prometheus metrics endpoint"""
