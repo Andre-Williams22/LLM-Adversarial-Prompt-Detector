@@ -1,5 +1,34 @@
+# Python cache and virtual environments
 venv/
+env/
 __pycache__/
-mlruns/
 *.pyc
+*.pyo
+*.pyd
+.Python
+
+# ML artifacts and data
+mlruns/
 data/
+outputs/
+wandb/
+notebooks/
+
+# Development files
+.git/
+.vscode/
+.idea/
+*.md
+LICENSE
+.env
+.env.local
+.env.example
+
+# Docker files
+Dockerfile
+docker-compose*.yml
+.dockerignore
+
+# OS files
+.DS_Store
+Thumbs.db
