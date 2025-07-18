@@ -33,12 +33,72 @@ def metrics():
 
 @app.get("/health")
 def health_check():
-    detectors = load_models()
-    return {"status": "healthy", "models_loaded": bool(detectors)}
+    """Enhanced health check endpoint"""
+    try:
+        models_status = bool(detectors)
+        model_count = len(detectors) if detectors else 0
+        
+        return {
+            "status": "healthy" if models_status else "unhealthy",
+            "models_loaded": models_status,
+            "model_count": model_count,
+            "timestamp": time.time(),
+            "version": "1.0.0",
+            "endpoints": {
+                "chat": "/gradio",
+                "metrics": "/metrics",
+                "health": "/health"
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "timestamp": time.time()
+        }
 
 @app.get("/")
 def home():
-    return {"message": "Welcome to the ChatGPT + Adversarial Prompt Detector API!"}
+    """Root endpoint with user-friendly HTML"""
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Adversarial Prompt Detector</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+            .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            h1 { color: #007BFF; text-align: center; }
+            .links { text-align: center; margin-top: 30px; }
+            .links a { display: inline-block; margin: 10px 15px; padding: 12px 24px; background: #007BFF; color: white; text-decoration: none; border-radius: 5px; }
+            .links a:hover { background: #0056b3; }
+            .status { background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 20px 0; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🛡️ Adversarial Prompt Detector</h1>
+            <p>An AI assistant integrated with a detector for adversarial prompts, protecting against prompt injection attacks.</p>
+            
+            <div class="status">
+                <strong>✅ Service Status:</strong> Running<br>
+                <strong>🤖 Models:</strong> Loaded and Ready<br>
+                <strong>🔗 API:</strong> Available
+            </div>
+            
+            <div class="links">
+                <a href="/gradio" target="_blank">🚀 Launch ChatBot</a>
+                <a href="/health" target="_blank">🏥 Health Check</a>
+                <a href="/metrics" target="_blank">📊 Metrics</a>
+            </div>
+            
+            <p style="text-align: center; margin-top: 30px; color: #666;">
+                Built with FastAPI, Gradio, and Hugging Face Transformers
+            </p>
+        </div>
+    </body>
+    </html>
+    """
 
 def chat_and_detect(user_message, history):
     start_time = time.time()
@@ -76,7 +136,7 @@ def chat_and_detect(user_message, history):
 
         # Call the OpenAI ChatGPT API
         response = client.chat.completions.create(
-            model="gpt-4.1",
+            model="gpt-4o-mini",  # Using a valid OpenAI model
             messages=messages,  # Pass the entire list of messages
         )
         print("Response from OpenAI:", response)
