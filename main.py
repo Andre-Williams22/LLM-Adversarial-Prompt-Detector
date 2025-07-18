@@ -1,12 +1,13 @@
 import os
 import time
-import threading
 import torch
 import mlflow
 import gradio as gr
 from openai import OpenAI
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.responses import Response
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from utils.model_processing import load_models, detect_adversarial_prompt
 
 # Load environment variables
@@ -25,6 +26,10 @@ detectors = load_models()
 # Build FastAPI + Gradio app
 app = FastAPI()
 
+@app.get("/metrics")
+def metrics():
+    """Prometheus metrics endpoint"""
+    return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 @app.get("/health")
 def health_check():
@@ -86,7 +91,6 @@ def chat_and_detect(user_message, history):
             f"Scores: {reasoning['scores']}</p>"
             )
 
-
     except Exception as e:
         history.append(("Bot", "An error occurred while processing your request."))
         flag_note = f"<p style='color:orange;font-weight:bold;'>Error: {str(e)}</p>"
@@ -136,4 +140,4 @@ app = gr.mount_gradio_app(app, demo, path="/gradio")
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True, workers=1)
+    uvicorn.run(app, host="0.0.0.0", port=8080, reload=True, workers=1)

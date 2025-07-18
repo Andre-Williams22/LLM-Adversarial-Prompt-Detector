@@ -1,19 +1,16 @@
-from main import * 
 import time 
 import mlflow 
 import datetime 
 import numpy as np
-import whylogs as why
 from transformers import pipeline
-from prometheus_client import Counter, Histogram, start_http_server
+from prometheus_client import Counter, Histogram
 
+# Don't start HTTP server here - it's handled by FastAPI
 
-prediction_counter = Counter('model_prediction_total', 'Total number of model predictions made')
-prediction_latency = Histogram('model_prediction_latency_seconds', 'Latency of model predictions in seconds')
-
-# Start prometheus HTTP Serer
-start_http_server(8000) # Expose metrics on port 8000
-
+prediction_counter = Counter('model_prediction_total', 'Total predictions per model', ['model_name'])
+model_latency = Histogram('model_latency_seconds', 'Latency of each model', ['model_name'])
+# global detectors dict 
+detectors = {}
 
 def load_models():
     """
@@ -30,15 +27,123 @@ def load_models():
     print("Models loaded successfully!")
     return detectors 
 
-@prediction_latency.time() # Automatically measures latency
+def predict_with_electra(prompt, detector, name):
+    """Predict using Electra Small model."""
+    start_time = time.time()
+    # Map LABEL_0 and LABEL_1 to meaningful labels
+    label_mapping = {"LABEL_0": "safe", "LABEL_1": "adversarial"}
+    # Pass the prompt directly as a string
+    prediction = detector(prompt)
+    latency = time.time() - start_time
+
+    # Log Prometheus metrics
+    prediction_counter.labels(model_name="electra_small").inc()
+    model_latency.labels(model_name="electra_small").observe(latency)
+
+    # extract prediction 
+     # Ensure proper slicing of nested list structure
+    if isinstance(prediction, list) and len(prediction) > 0 and isinstance(prediction[0], list):
+        prediction = prediction[0]
+    # Extract the score for the adversarial label (assuming label index 1 is adversarial)
+    adversarial_score = next((item["score"] for item in prediction if label_mapping.get(item["label"]) == "adversarial"), 0)
+    print(name, "adversarial_score:", adversarial_score)
+    print(" ")
+
+    # Log MLflow metrics in nested run
+    with mlflow.start_run(nested=True):
+        mlflow.log_param("model_name", "electra_small")
+        mlflow.log_metric("latency", latency)
+        mlflow.log_metric("detection_score", adversarial_score)
+        mlflow.log_param("is_adversarial", adversarial_score > 0.5)
+        mlflow.log_param("prompt", prompt)  # Log the prompt
+
+    return adversarial_score
+
+def predict_with_tox_bert(prompt, detector, name):
+    """Predict using Toxic BERT model."""
+    start_time = time.time()
+    prediction = detector(prompt)
+    latency = time.time() - start_time
+    # Log Prometheus metrics
+    prediction_counter.labels(model_name="tox_bert").inc()
+    model_latency.labels(model_name="tox_bert").observe(latency)
+    # Extract prediction Ensure proper slicing of nested list structure
+    # Handle nested list structure
+    if isinstance(prediction, list) and len(prediction) > 0 and isinstance(prediction[0], list):
+        prediction = prediction[0]
+    # Extract the score for the "toxic" label
+    adversarial_score = sum(item["score"] for item in prediction if item["label"] in ["toxic", "threat", "identity_hate"])
+    print(name, "adversarial_score:", adversarial_score)
+    print(" ")
+    
+    # Log MLflow metrics in nested run
+    with mlflow.start_run(nested=True):
+        mlflow.log_param("model_name", "tox_bert")
+        mlflow.log_metric("latency", latency)
+        mlflow.log_metric("detection_score", adversarial_score)
+        mlflow.log_param("is_adversarial", adversarial_score > 0.5)
+        mlflow.log_param("prompt", prompt)  # Log the prompt
+
+    return adversarial_score
+
+def predict_with_offensive_roberta(prompt, detector, name):
+    """Predict using Offensive Roberta model."""
+    start_time = time.time()
+    prediction = detector(prompt)
+    latency = time.time() - start_time
+
+    # Log Prometheus metrics
+    prediction_counter.labels(model_name="offensive_roberta").inc()
+    model_latency.labels(model_name="offensive_roberta").observe(latency)
+
+    # Extract prediction Ensure proper slicing of nested list structure
+    if isinstance(prediction, list) and isinstance(prediction[0], list):
+        prediction = prediction[0]
+    adversarial_score = next((item["score"] for item in prediction if item["label"] == "offensive"), 0.0)
+    print(name, "adversarial_score:", adversarial_score)
+    print(" ")
+
+    # Log MLflow metrics in nested run
+    with mlflow.start_run(nested=True):
+        mlflow.log_param("model_name", "offensive_roberta")
+        mlflow.log_metric("latency", latency)
+        mlflow.log_metric("detection_score", adversarial_score)
+        mlflow.log_param("is_adversarial", adversarial_score > 0.5)
+        mlflow.log_param("prompt", prompt)  # Log the prompt
+
+    return adversarial_score
+
+def predict_with_bart_mnli(prompt, detector, name):
+    """Predict using BART MNLI model."""
+    start_time = time.time()
+    prediction = detector(prompt, candidate_labels=["toxic", "safe"])
+    latency = time.time() - start_time
+
+    # Log Prometheus metrics
+    prediction_counter.labels(model_name="bart_mnli").inc()
+    model_latency.labels(model_name="bart_mnli").observe(latency)
+
+    # Ensure proper slicing of nested list structure
+    if isinstance(prediction, list) and len(prediction) > 0 and isinstance(prediction[0], list):
+        prediction = [item for sublist in prediction for item in sublist]  # Flatten the list
+    adversarial_score = prediction["scores"][1]
+    print(name, "adversarial_score:", adversarial_score)
+    print("")
+
+    # Log MLflow metrics in nested run
+    with mlflow.start_run(nested=True):
+        mlflow.log_param("model_name", "bart_mnli")
+        mlflow.log_metric("latency", latency)
+        mlflow.log_metric("detection_score", adversarial_score)
+        mlflow.log_param("is_adversarial", adversarial_score > 0.5)
+        mlflow.log_param("prompt", prompt)  # Log the prompt
+
+    return adversarial_score
+
+@model_latency.labels(model_name="detect_adversarial_prompt").time() # Automatically measures latency
 def detect_adversarial_prompt(prompt, detectors):
     """ Detects adversarial prompts using multiple detectors. """
-    prediction_counter.inc() # Increment prediction counter
-
-    # Log the prompt using whylogs
-    profile_result = why.log({"prompt": prompt})
-    print(profile_result.view().to_pandas())
-
+    prediction_counter.labels(model_name="detect_adversarial_prompt").inc() # Increment prediction counter
 
     if not isinstance(prompt, (str)):
         raise ValueError("Prompt must be a string.")
@@ -47,44 +152,21 @@ def detect_adversarial_prompt(prompt, detectors):
     for name, detector in detectors.items():
         try:
             if name == "electra_small":
-                # Map LABEL_0 and LABEL_1 to meaningful labels
-                label_mapping = {"LABEL_0": "safe", "LABEL_1": "adversarial"}
-                # Pass the prompt directly as a string
-                result = detector(prompt)
-                # Ensure proper slicing of nested list structure
-                if isinstance(result, list) and len(result) > 0 and isinstance(result[0], list):
-                    result = result[0]  
-                # Extract the score for the adversarial label (assuming label index 1 is adversarial)
-                adversarial_score = next((item["score"] for item in result if label_mapping.get(item["label"]) == "adversarial"), 0)
-
+                # predict using Electra Small model
+                scores.append(predict_with_electra(prompt=prompt, detector=detector, name=name))
             elif name == "tox_bert":
                 # Pass the prompt directly as a string
-                result = detector(prompt)
-                # Handle nested list structure
-                if isinstance(result, list) and isinstance(result[0], list):
-                    result = result[0]  # Access the first element of the outer list
-                # Extract the score for the "toxic" label
-                adversarial_score = sum(item["score"] for item in result if item["label"] in ["toxic", "threat", "identity_hate"])
-                print(name, "adversarial_score:", adversarial_score)
-                print(" ")
+                scores.append(predict_with_tox_bert(prompt=prompt, detector=detector, name=name))
             elif name == "offensive_roberta":
-                result = detector(prompt)
-                if isinstance(result, list) and isinstance(result[0], list):
-                    result = result[0]
-                adversarial_score = next((item["score"] for item in result if item["label"] == "offensive"), 0.0)
-                print(name, "adversarial_score:", adversarial_score)
-                print(" ")
+                # Pass the prompt directly as a string
+                scores.append(predict_with_offensive_roberta(prompt=prompt, detector=detector, name=name))
             elif name == "bart_mnli":
                 # Zero-shot classification with custom labels
-                result = detector(prompt, candidate_labels=["toxic", "safe"])
-                if isinstance(result, list) and isinstance(result[0], list):
-                    result = [item for sublist in result for item in sublist]  # Flatten the list
-                adversarial_score = result["scores"][1]
-                print(name, "adversarial_score:", adversarial_score)
+                scores.append(predict_with_bart_mnli(prompt=prompt, detector=detector, name=name))
             else:
-                adversarial_score = 0.0 # Default score for unsupported detectors
-
-            scores.append(adversarial_score)
+                # Default score for unsupported detectors
+                scores.append(0.0)
+                
         except Exception as e:
             print(f"Error with detector {name}: {e}")
             scores.append(0.0)  # Default to 0 if detector fails
@@ -92,24 +174,12 @@ def detect_adversarial_prompt(prompt, detectors):
     # Apply voting mechanism to determine if the prompt is adversarial
     is_adv, reasoning = is_adversarial(scores)
 
-    # MLflow logging
+    # Log only the final voting decision and reasoning
     with mlflow.start_run():
         mlflow.log_param("prompt", prompt)
-        mlflow.log_param("reasoning", reasoning)
-        for idx, (name, score) in enumerate(zip(detectors.keys(), scores)):
-            # Log the model name alongside the score
-            mlflow.log_metric(f"{name}_adversarial_score", score)
-            mlflow.log_param("model_name", name)
-                # If you want to log reasoning, include it in the data dictionary
-            profile = why.log({"model_name": name, "prompt": prompt, "adversarial_score": score, "reasoning": reasoning})
-            # Write the profile to a specified path
-            profile.view().write("whylogs_adversarial_detection_path")
-
-    # Whylogs logging
-    # If you want to log reasoning, include it in the data dictionary
-    profile = why.log({"prompt": prompt, "scores": scores, "reasoning": reasoning})
-    # Write the profile to a specified path
-    profile.view().write("whylogs_adversarial_detection_path")
+        mlflow.log_param("final_reasoning", str(reasoning["decision"]))
+        mlflow.log_param("is_adversarial", is_adv)
+        mlflow.log_metric("final_adversarial_decision", float(is_adv))
 
     return is_adv, reasoning
 
