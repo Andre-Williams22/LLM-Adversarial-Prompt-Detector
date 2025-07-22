@@ -180,7 +180,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         <h1 style="text-align:center;color:#007BFF;">ChatGPT + Adversarial Prompt Detector</h1>
         <p style="text-align:center;color:#555;">An AI assistant integrated with a detector for adversarial prompts.</p>
     """)
-    chatbot = gr.Chatbot(label="ChatGPT + Detector", elem_id="chatbox", type="messages")
+    chatbot = gr.Chatbot(label="ChatGPT + Detector", elem_id="chatbox")
     state = gr.State([])  # Holds chat history as list of (role, msg)
     user_in = gr.Textbox(
         placeholder="Ask anything here …",
