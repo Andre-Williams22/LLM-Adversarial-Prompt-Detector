@@ -49,14 +49,18 @@ def predict_with_electra(prompt, detector, name):
     print(name, "adversarial_score:", adversarial_score)
     print(" ")
 
-    # Log MLflow metrics in nested run (with error handling)
+    # Log MLflow metrics as individual run (industry standard)
     try:
-        with mlflow.start_run(nested=True):
+        with mlflow.start_run(run_name=f"electra_small_{int(time.time())}"):
             mlflow.log_param("model_name", "electra_small")
+            mlflow.log_param("model_version", "google/electra-small-discriminator")
             mlflow.log_metric("latency", latency)
             mlflow.log_metric("detection_score", adversarial_score)
             mlflow.log_param("is_adversarial", adversarial_score > 0.5)
-            mlflow.log_param("prompt", prompt)  # Log the prompt
+            mlflow.log_param("prompt", prompt[:100])  # Truncate for storage
+            mlflow.log_param("timestamp", datetime.datetime.now().isoformat())
+            mlflow.set_tag("model_type", "transformer")
+            mlflow.set_tag("task", "adversarial_detection")
     except Exception as e:
         print(f"MLflow logging failed for electra_small: {e}")
 
@@ -79,14 +83,18 @@ def predict_with_tox_bert(prompt, detector, name):
     print(name, "adversarial_score:", adversarial_score)
     print(" ")
     
-    # Log MLflow metrics in nested run (with error handling)
+    # Log MLflow metrics as individual run (industry standard)
     try:
-        with mlflow.start_run(nested=True):
+        with mlflow.start_run(run_name=f"tox_bert_{int(time.time())}"):
             mlflow.log_param("model_name", "tox_bert")
+            mlflow.log_param("model_version", "unitary/toxic-bert")
             mlflow.log_metric("latency", latency)
             mlflow.log_metric("detection_score", adversarial_score)
             mlflow.log_param("is_adversarial", adversarial_score > 0.5)
-            mlflow.log_param("prompt", prompt)  # Log the prompt
+            mlflow.log_param("prompt", prompt[:100])  # Truncate for storage
+            mlflow.log_param("timestamp", datetime.datetime.now().isoformat())
+            mlflow.set_tag("model_type", "transformer")
+            mlflow.set_tag("task", "toxicity_detection")
     except Exception as e:
         print(f"MLflow logging failed for tox_bert: {e}")
 
@@ -109,14 +117,18 @@ def predict_with_offensive_roberta(prompt, detector, name):
     print(name, "adversarial_score:", adversarial_score)
     print(" ")
 
-    # Log MLflow metrics in nested run (with error handling)
+    # Log MLflow metrics as individual run (industry standard)
     try:
-        with mlflow.start_run(nested=True):
+        with mlflow.start_run(run_name=f"offensive_roberta_{int(time.time())}"):
             mlflow.log_param("model_name", "offensive_roberta")
+            mlflow.log_param("model_version", "cardiffnlp/twitter-roberta-base-offensive")
             mlflow.log_metric("latency", latency)
             mlflow.log_metric("detection_score", adversarial_score)
             mlflow.log_param("is_adversarial", adversarial_score > 0.5)
-            mlflow.log_param("prompt", prompt)  # Log the prompt
+            mlflow.log_param("prompt", prompt[:100])  # Truncate for storage
+            mlflow.log_param("timestamp", datetime.datetime.now().isoformat())
+            mlflow.set_tag("model_type", "transformer")
+            mlflow.set_tag("task", "offensive_detection")
     except Exception as e:
         print(f"MLflow logging failed for offensive_roberta: {e}")
 
@@ -139,14 +151,18 @@ def predict_with_bart_mnli(prompt, detector, name):
     print(name, "adversarial_score:", adversarial_score)
     print("")
 
-    # Log MLflow metrics in nested run (with error handling)
+    # Log MLflow metrics as individual run (industry standard)
     try:
-        with mlflow.start_run(nested=True):
+        with mlflow.start_run(run_name=f"bart_mnli_{int(time.time())}"):
             mlflow.log_param("model_name", "bart_mnli")
+            mlflow.log_param("model_version", "facebook/bart-large-mnli")
             mlflow.log_metric("latency", latency)
             mlflow.log_metric("detection_score", adversarial_score)
             mlflow.log_param("is_adversarial", adversarial_score > 0.5)
-            mlflow.log_param("prompt", prompt)  # Log the prompt
+            mlflow.log_param("prompt", prompt[:100])  # Truncate for storage
+            mlflow.log_param("timestamp", datetime.datetime.now().isoformat())
+            mlflow.set_tag("model_type", "zero_shot_classifier")
+            mlflow.set_tag("task", "adversarial_detection")
     except Exception as e:
         print(f"MLflow logging failed for bart_mnli: {e}")
 
@@ -186,15 +202,28 @@ def detect_adversarial_prompt(prompt, detectors):
     # Apply voting mechanism to determine if the prompt is adversarial
     is_adv, reasoning = is_adversarial(scores)
 
-    # Log only the final voting decision and reasoning (with error handling)
+    # Log ensemble decision as individual run (industry standard)
     try:
-        with mlflow.start_run(nested=True):
-            mlflow.log_param("prompt", prompt)
-            mlflow.log_param("final_reasoning", str(reasoning["decision"]))
-            mlflow.log_param("is_adversarial", is_adv)
-            mlflow.log_metric("final_adversarial_decision", float(is_adv))
+        with mlflow.start_run(run_name=f"ensemble_decision_{int(time.time())}"):
+            mlflow.log_param("ensemble_type", "voting_classifier")
+            mlflow.log_param("models_used", ["electra_small", "tox_bert", "offensive_roberta", "bart_mnli"])
+            mlflow.log_param("voting_threshold", 0.5)
+            mlflow.log_param("prompt", prompt[:100])  # Truncate for storage
+            mlflow.log_param("final_decision", is_adv)
+            mlflow.log_param("reasoning", str(reasoning["reason"]))
+            mlflow.log_metric("confidence_score", max(reasoning["scores"]))
+            mlflow.log_metric("model_agreement", reasoning.get("votes", 0))
+            mlflow.log_param("timestamp", datetime.datetime.now().isoformat())
+            mlflow.set_tag("model_type", "ensemble")
+            mlflow.set_tag("task", "final_classification")
+            
+            # Log individual model scores as metrics
+            for i, score in enumerate(reasoning["scores"]):
+                model_names = ["electra", "tox_bert", "offensive_roberta", "bart_mnli"]
+                if i < len(model_names):
+                    mlflow.log_metric(f"{model_names[i]}_score", score)
     except Exception as e:
-        print(f"MLflow logging failed for final decision: {e}")
+        print(f"MLflow logging failed for ensemble decision: {e}")
 
     return is_adv, reasoning
 

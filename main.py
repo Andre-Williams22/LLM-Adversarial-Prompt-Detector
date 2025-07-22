@@ -120,14 +120,6 @@ def chat_and_detect(user_message, history):
     history = history or []
     history.append(("User", user_message))
 
-    # Start MLflow parent run if available
-    mlflow_run = None
-    if mlflow_available:
-        try:
-            mlflow_run = mlflow.start_run()
-        except Exception as e:
-            print(f"MLflow run start failed: {e}")
-
     try:
         # 1. Check adversarial prompt
         is_adv, reasoning = detect_adversarial_prompt(user_message, detectors)
@@ -177,14 +169,6 @@ def chat_and_detect(user_message, history):
     except Exception as e:
         history.append(("Bot", "An error occurred while processing your request."))
         flag_note = f"<p style='color:orange;font-weight:bold;'>Error: {str(e)}</p>"
-    
-    finally:
-        # Close MLflow run if it was started
-        if mlflow_run is not None:
-            try:
-                mlflow.end_run()
-            except Exception as e:
-                print(f"MLflow run end failed: {e}")
 
     end_time = time.time()
     final_time = end_time - start_time
