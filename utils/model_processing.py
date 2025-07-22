@@ -139,13 +139,16 @@ def predict_with_bart_mnli(prompt, detector, name):
     print(name, "adversarial_score:", adversarial_score)
     print("")
 
-    # Log MLflow metrics in nested run
-    with mlflow.start_run(nested=True):
-        mlflow.log_param("model_name", "bart_mnli")
-        mlflow.log_metric("latency", latency)
-        mlflow.log_metric("detection_score", adversarial_score)
-        mlflow.log_param("is_adversarial", adversarial_score > 0.5)
-        mlflow.log_param("prompt", prompt)  # Log the prompt
+    # Log MLflow metrics in nested run (with error handling)
+    try:
+        with mlflow.start_run(nested=True):
+            mlflow.log_param("model_name", "bart_mnli")
+            mlflow.log_metric("latency", latency)
+            mlflow.log_metric("detection_score", adversarial_score)
+            mlflow.log_param("is_adversarial", adversarial_score > 0.5)
+            mlflow.log_param("prompt", prompt)  # Log the prompt
+    except Exception as e:
+        print(f"MLflow logging failed for bart_mnli: {e}")
 
     return adversarial_score
 
@@ -183,12 +186,15 @@ def detect_adversarial_prompt(prompt, detectors):
     # Apply voting mechanism to determine if the prompt is adversarial
     is_adv, reasoning = is_adversarial(scores)
 
-    # Log only the final voting decision and reasoning
-    with mlflow.start_run():
-        mlflow.log_param("prompt", prompt)
-        mlflow.log_param("final_reasoning", str(reasoning["decision"]))
-        mlflow.log_param("is_adversarial", is_adv)
-        mlflow.log_metric("final_adversarial_decision", float(is_adv))
+    # Log only the final voting decision and reasoning (with error handling)
+    try:
+        with mlflow.start_run(nested=True):
+            mlflow.log_param("prompt", prompt)
+            mlflow.log_param("final_reasoning", str(reasoning["decision"]))
+            mlflow.log_param("is_adversarial", is_adv)
+            mlflow.log_metric("final_adversarial_decision", float(is_adv))
+    except Exception as e:
+        print(f"MLflow logging failed for final decision: {e}")
 
     return is_adv, reasoning
 
