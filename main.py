@@ -68,7 +68,7 @@ def health_check():
             "timestamp": time.time(),
             "version": "1.0.0",
             "endpoints": {
-                "chat": "/gradio",
+                "chat": "/chat",
                 "metrics": "/metrics",
                 "health": "/health"
             }
@@ -89,7 +89,7 @@ def home():
         "status": "running",
         "version": "1.0.0",
         "endpoints": {
-            "chat_interface": "/gradio",
+            "chat_interface": "/chat",
             "health_check": "/health",
             "metrics": "/metrics",
         },
@@ -98,7 +98,7 @@ def home():
             "model_count": len(detectors) if detectors else 0
         },
         "links": {
-            "chat": "https://safe-prompts.andrewilliams.ai/gradio",
+            "chat": "https://safe-prompts.andrewilliams.ai/chat",
             "health": "https://safe-prompts.andrewilliams.ai/health",
             "metrics": "https://safe-prompts.andrewilliams.ai/metrics",
         }
@@ -199,8 +199,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         queue=False,
     )
 
-# Mount Gradio under /gradio
-app = gr.mount_gradio_app(app, demo, path="/gradio")
+# Mount Gradio under /chat
+app = gr.mount_gradio_app(app, demo, path="/chat")
 
 if __name__ == "__main__":
     import uvicorn

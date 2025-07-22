@@ -9,6 +9,14 @@ __pycache__/
 /mlruns
 /wandb
 
+
+# folder specific files
+deployments/
+deployments/grafana/
+deployments/prometheus/
+deployments/mlflow/
+
+
 # C extensions
 *.so
 
