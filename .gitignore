@@ -16,6 +16,8 @@ deployments/grafana/
 deployments/prometheus/
 deployments/mlflow/
 
+.env.template 
+.env.example
 
 # C extensions
 *.so

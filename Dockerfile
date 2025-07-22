@@ -22,10 +22,10 @@ RUN pip install --upgrade pip setuptools wheel && \
 # Copy the rest of the application
 COPY . .
 
-# Create a simple health check endpoint for CapRover
+# Create a simple health check endpoint for deployment
 RUN echo '#!/bin/bash\ncurl -f http://localhost:80/health || exit 1' > /health.sh && chmod +x /health.sh
 
 EXPOSE 80
 
-# Use uvicorn with proper host binding for CapRover and model preloading
+# Use uvicorn with proper host binding for deployment and model preloading
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80", "--workers", "1", "--timeout-keep-alive", "65"]

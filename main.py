@@ -7,14 +7,26 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import Response
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter, Histogram, Gauge
 from utils.model_processing import load_models, detect_adversarial_prompt
+from utils.mongodb_manager import mongodb_manager
+import logging
+import uuid
 
 # Load environment variables
 load_dotenv()
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # OpenAI API key setup
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+openai_api_key = os.getenv("OPENAI_API_KEY")
+if not openai_api_key or openai_api_key == "your_openai_api_key_here":
+    logger.warning("OpenAI API key not configured. Chat functionality will be limited.")
+    client = None
+else:
+    client = OpenAI(api_key=openai_api_key)
 
 # Set up MLflow
 mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "file:///app/mlruns")
@@ -43,15 +55,63 @@ def setup_mlflow_experiment():
 # Setup MLflow
 mlflow_available = setup_mlflow_experiment()
 
+# Prometheus metrics
+MODEL_INFERENCE_DURATION = Histogram(
+    'model_inference_duration_seconds',
+    'Time spent on model inference',
+    ['model_name', 'model_type']
+)
+
+MODEL_INFERENCE_COUNT = Counter(
+    'model_inference_total',
+    'Total number of model inferences',
+    ['model_name', 'model_type']
+)
+
+ADVERSARIAL_DETECTIONS = Counter(
+    'adversarial_detections_total',
+    'Total number of adversarial prompts detected',
+    ['model_name']
+)
+
+CHAT_REQUESTS = Counter(
+    'chat_requests_total',
+    'Total number of chat requests processed'
+)
+
+ACTIVE_MODELS = Gauge(
+    'active_models_count',
+    'Number of currently loaded models'
+)
+
 # Initialize detectors globally with progress logging
 print("🤖 Loading adversarial detection models...")
 start_load_time = time.time()
 detectors = load_models()
 load_duration = time.time() - start_load_time
+
+# Set the active models gauge
+ACTIVE_MODELS.set(len(detectors))
+
 print(f"✅ Models loaded successfully in {load_duration:.2f} seconds")
 
 # Build FastAPI + Gradio app
 app = FastAPI()
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize MongoDB connection on startup"""
+    try:
+        await mongodb_manager.connect()
+        logger.info("✅ Application startup complete with MongoDB")
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize MongoDB during startup: {e}")
+        logger.info("Application will continue without MongoDB logging")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Close MongoDB connection on shutdown"""
+    await mongodb_manager.close()
 
 @app.get("/favicon.ico")
 async def favicon():
@@ -72,16 +132,25 @@ def health_check():
         models_status = bool(detectors)
         model_count = len(detectors) if detectors else 0
         
+        # Check service configurations (without exposing secrets)
+        services_config = {
+            "openai_configured": bool(client),
+            "mongodb_configured": hasattr(mongodb_manager, 'connection_string') and mongodb_manager.connection_string is not None,
+            "mlflow_configured": bool(mlflow_available)
+        }
+        
         return {
             "status": "healthy" if models_status else "unhealthy",
             "models_loaded": models_status,
             "model_count": model_count,
+            "services": services_config,
             "timestamp": time.time(),
             "version": "1.0.0",
             "endpoints": {
                 "chat": "/chat",
                 "metrics": "/metrics",
-                "health": "/health"
+                "health": "/health",
+                "stats": "/stats"
             }
         }
     except Exception as e:
@@ -103,6 +172,7 @@ def home():
             "chat_interface": "/chat",
             "health_check": "/health",
             "metrics": "/metrics",
+            "statistics": "/stats"
         },
         "services": {
             "models_loaded": bool(detectors),
@@ -112,67 +182,142 @@ def home():
             "chat": "https://safe-prompts.andrewilliams.ai/chat",
             "health": "https://safe-prompts.andrewilliams.ai/health",
             "metrics": "https://safe-prompts.andrewilliams.ai/metrics",
+            "statistics": "https://safe-prompts.andrewilliams.ai/stats"
         }
     }
+
+@app.get("/stats")
+async def get_statistics():
+    """Get application statistics from MongoDB"""
+    try:
+        chat_stats = await mongodb_manager.get_chat_statistics(days=7)
+        model_stats = await mongodb_manager.get_model_performance_stats(days=7)
+        
+        return {
+            "chat_statistics": chat_stats,
+            "model_performance": model_stats,
+            "time_period": "last_7_days"
+        }
+    except Exception as e:
+        return {
+            "error": f"Failed to retrieve statistics: {str(e)}",
+            "chat_statistics": {},
+            "model_performance": []
+        }
 
 def chat_and_detect(user_message, history):
     start_time = time.time()
     history = history or []
     history.append(("User", user_message))
+    
+    # Generate session ID for this conversation
+    session_id = str(uuid.uuid4())
+
+    # Track chat request
+    CHAT_REQUESTS.inc()
 
     try:
         # 1. Check adversarial prompt
+        detection_start = time.time()
         is_adv, reasoning = detect_adversarial_prompt(user_message, detectors)
+        detection_duration = time.time() - detection_start
+        
+        # Track model metrics
+        model_names = ["electra_small", "tox_bert", "offensive_roberta", "bart_mnli"]
+        scores_list = reasoning["scores"]
+        
+        for i, score in enumerate(scores_list):
+            if i < len(model_names):
+                model_name = model_names[i]
+                MODEL_INFERENCE_COUNT.labels(model_name=model_name, model_type="adversarial_detector").inc()
+                MODEL_INFERENCE_DURATION.labels(model_name=model_name, model_type="adversarial_detector").observe(detection_duration)
+                
+                # Track if adversarial prompt was detected by this model
+                if score > reasoning["threshold"]:
+                    ADVERSARIAL_DETECTIONS.labels(model_name=model_name).inc()
+        
         print("reasoning", reasoning)
         scores = reasoning["scores"]
         print("scores", scores)
 
+        bot_response = ""
         if is_adv:
-            history.append(("Bot", "⚠️ Adversarial prompt detected! The request was not processed."))
+            bot_response = "⚠️ Adversarial prompt detected! The request was not processed."
+            history.append(("Bot", bot_response))
             flag_note = (
                 f"<p style='color:red;font-weight:bold;'>"
                 f"Adversarial Prompt Detected<br>"
                 f"Reason: {reasoning['reason']}<br>"
                 f"Threshold: {reasoning['threshold']:.2f}<br>"
-                f"Scores: {reasoning['scores']}</p>"
-                
+                f"Scores: {reasoning['scores']}</p>"    
             )
-            return history, history, flag_note
+        else:
+            # Assemble the last few turns into the OpenAI chat-completions format
+            messages = [{"role": "system", "content": "You are a helpful assistant."}]
+            for role, msg in history[-6:]:
+                if role == "User":
+                    messages.append({"role": "user", "content": msg})
+                else:
+                    messages.append({"role": "assistant", "content": msg})
+            # Add the most recent user message
+            messages.append({"role": "user", "content": user_message})
 
-        # Assemble the last few turns into the OpenAI chat-completions format
-        messages = [{"role": "system", "content": "You are a helpful assistant."}]
-        for role, msg in history[-6:]:
-            if role == "User":
-                messages.append({"role": "user", "content": msg})
+            # Call the OpenAI ChatGPT API
+            if client:
+                response = client.chat.completions.create(
+                    model="gpt-4o-mini",  # Using a valid OpenAI model
+                    messages=messages,  # Pass the entire list of messages
+                )
+                print("Response from OpenAI:", response)
+                bot_response = response.choices[0].message.content
+                history.append(("Bot", bot_response))
             else:
-                messages.append({"role": "assistant", "content": msg})
-        # Add the most recent user message
-        messages.append({"role": "user", "content": user_message})
+                bot_response = "OpenAI API not configured. Chat functionality is disabled."
+                history.append(("Bot", bot_response))
 
-        # Call the OpenAI ChatGPT API
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",  # Using a valid OpenAI model
-            messages=messages,  # Pass the entire list of messages
-        )
-        print("Response from OpenAI:", response)
-        bot_reply = response.choices[0].message.content
-        history.append(("Bot", bot_reply))
-
-        flag_note = (
-            f"<p style='color:green;font-weight:bold;'>"
-            f"No adversarial prompt detected.<br>"
-            f"Reason: {reasoning['reason']}<br>"
-            f"Threshold: {reasoning['threshold']:.2f}</br>"
-            f"Scores: {reasoning['scores']}</p>"
-            )
+            flag_note = (
+                f"<p style='color:green;font-weight:bold;'>"
+                f"No adversarial prompt detected.<br>"
+                f"Reason: {reasoning['reason']}<br>"
+                f"Threshold: {reasoning['threshold']:.2f}</br>"
+                f"Scores: {reasoning['scores']}</p>"
+                )
 
     except Exception as e:
-        history.append(("Bot", "An error occurred while processing your request."))
+        bot_response = "An error occurred while processing your request."
+        history.append(("Bot", bot_response))
         flag_note = f"<p style='color:orange;font-weight:bold;'>Error: {str(e)}</p>"
 
     end_time = time.time()
     final_time = end_time - start_time
     print("latency in ms", final_time)
+    
+    # Log to MongoDB (async, non-blocking)
+    try:
+        detection_results = {
+            "is_adversarial": is_adv,
+            "scores": reasoning.get("scores", []),  # Changed from {} to []
+            "reason": reasoning.get("reason", ""),
+            "threshold": reasoning.get("threshold", 0.0)
+        }
+        
+        # Run MongoDB logging in background
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(
+            mongodb_manager.log_chat_interaction(
+                user_message=user_message,
+                bot_response=bot_response,
+                detection_results=detection_results,
+                latency=final_time,
+                session_id=session_id
+            )
+        )
+        loop.close()
+    except Exception as mongo_error:
+        logger.error(f"Failed to log to MongoDB: {mongo_error}")
+        # Continue without MongoDB logging
 
     return history, history, flag_note
 
