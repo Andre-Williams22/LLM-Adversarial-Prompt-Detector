@@ -17,11 +17,27 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Set up MLflow
-mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI", ""))
-mlflow.set_experiment("adversarial_prompt_detector")
+mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "file:///app/mlruns")
+mlflow.set_tracking_uri(mlflow_uri)
 
-# Initialize detectors globally
+# Set experiment with error handling
+try:
+    mlflow.set_experiment("adversarial_prompt_detector")
+except Exception as e:
+    print(f"MLflow experiment setup warning: {e}")
+    # Create experiment if it doesn't exist
+    try:
+        mlflow.create_experiment("adversarial_prompt_detector")
+        mlflow.set_experiment("adversarial_prompt_detector")
+    except Exception as create_error:
+        print(f"MLflow experiment creation warning: {create_error}")
+
+# Initialize detectors globally with progress logging
+print("🤖 Loading adversarial detection models...")
+start_load_time = time.time()
 detectors = load_models()
+load_duration = time.time() - start_load_time
+print(f"✅ Models loaded successfully in {load_duration:.2f} seconds")
 
 # Build FastAPI + Gradio app
 app = FastAPI()
@@ -164,7 +180,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         <h1 style="text-align:center;color:#007BFF;">ChatGPT + Adversarial Prompt Detector</h1>
         <p style="text-align:center;color:#555;">An AI assistant integrated with a detector for adversarial prompts.</p>
     """)
-    chatbot = gr.Chatbot(label="ChatGPT + Detector", elem_id="chatbox")
+    chatbot = gr.Chatbot(label="ChatGPT + Detector", elem_id="chatbox", type="messages")
     state = gr.State([])  # Holds chat history as list of (role, msg)
     user_in = gr.Textbox(
         placeholder="Ask anything here …",

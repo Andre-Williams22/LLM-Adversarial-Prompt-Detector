@@ -27,5 +27,5 @@ RUN echo '#!/bin/bash\ncurl -f http://localhost:80/health || exit 1' > /health.s
 
 EXPOSE 80
 
-# Use uvicorn with proper host binding for CapRover
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80", "--workers", "1"]
+# Use uvicorn with proper host binding for CapRover and model preloading
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80", "--workers", "1", "--timeout-keep-alive", "65"]
