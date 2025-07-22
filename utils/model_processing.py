@@ -49,13 +49,16 @@ def predict_with_electra(prompt, detector, name):
     print(name, "adversarial_score:", adversarial_score)
     print(" ")
 
-    # Log MLflow metrics in nested run
-    with mlflow.start_run(nested=True):
-        mlflow.log_param("model_name", "electra_small")
-        mlflow.log_metric("latency", latency)
-        mlflow.log_metric("detection_score", adversarial_score)
-        mlflow.log_param("is_adversarial", adversarial_score > 0.5)
-        mlflow.log_param("prompt", prompt)  # Log the prompt
+    # Log MLflow metrics in nested run (with error handling)
+    try:
+        with mlflow.start_run(nested=True):
+            mlflow.log_param("model_name", "electra_small")
+            mlflow.log_metric("latency", latency)
+            mlflow.log_metric("detection_score", adversarial_score)
+            mlflow.log_param("is_adversarial", adversarial_score > 0.5)
+            mlflow.log_param("prompt", prompt)  # Log the prompt
+    except Exception as e:
+        print(f"MLflow logging failed for electra_small: {e}")
 
     return adversarial_score
 
@@ -76,13 +79,16 @@ def predict_with_tox_bert(prompt, detector, name):
     print(name, "adversarial_score:", adversarial_score)
     print(" ")
     
-    # Log MLflow metrics in nested run
-    with mlflow.start_run(nested=True):
-        mlflow.log_param("model_name", "tox_bert")
-        mlflow.log_metric("latency", latency)
-        mlflow.log_metric("detection_score", adversarial_score)
-        mlflow.log_param("is_adversarial", adversarial_score > 0.5)
-        mlflow.log_param("prompt", prompt)  # Log the prompt
+    # Log MLflow metrics in nested run (with error handling)
+    try:
+        with mlflow.start_run(nested=True):
+            mlflow.log_param("model_name", "tox_bert")
+            mlflow.log_metric("latency", latency)
+            mlflow.log_metric("detection_score", adversarial_score)
+            mlflow.log_param("is_adversarial", adversarial_score > 0.5)
+            mlflow.log_param("prompt", prompt)  # Log the prompt
+    except Exception as e:
+        print(f"MLflow logging failed for tox_bert: {e}")
 
     return adversarial_score
 
@@ -103,13 +109,16 @@ def predict_with_offensive_roberta(prompt, detector, name):
     print(name, "adversarial_score:", adversarial_score)
     print(" ")
 
-    # Log MLflow metrics in nested run
-    with mlflow.start_run(nested=True):
-        mlflow.log_param("model_name", "offensive_roberta")
-        mlflow.log_metric("latency", latency)
-        mlflow.log_metric("detection_score", adversarial_score)
-        mlflow.log_param("is_adversarial", adversarial_score > 0.5)
-        mlflow.log_param("prompt", prompt)  # Log the prompt
+    # Log MLflow metrics in nested run (with error handling)
+    try:
+        with mlflow.start_run(nested=True):
+            mlflow.log_param("model_name", "offensive_roberta")
+            mlflow.log_metric("latency", latency)
+            mlflow.log_metric("detection_score", adversarial_score)
+            mlflow.log_param("is_adversarial", adversarial_score > 0.5)
+            mlflow.log_param("prompt", prompt)  # Log the prompt
+    except Exception as e:
+        print(f"MLflow logging failed for offensive_roberta: {e}")
 
     return adversarial_score
 

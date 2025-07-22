@@ -20,17 +20,28 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "file:///app/mlruns")
 mlflow.set_tracking_uri(mlflow_uri)
 
-# Set experiment with error handling
-try:
-    mlflow.set_experiment("adversarial_prompt_detector")
-except Exception as e:
-    print(f"MLflow experiment setup warning: {e}")
-    # Create experiment if it doesn't exist
+# Set experiment with robust error handling
+def setup_mlflow_experiment():
+    experiment_name = "adversarial_prompt_detector"
     try:
-        mlflow.create_experiment("adversarial_prompt_detector")
-        mlflow.set_experiment("adversarial_prompt_detector")
-    except Exception as create_error:
-        print(f"MLflow experiment creation warning: {create_error}")
+        # Try to get existing experiment first
+        experiment = mlflow.get_experiment_by_name(experiment_name)
+        if experiment is None:
+            # Create experiment if it doesn't exist
+            experiment_id = mlflow.create_experiment(experiment_name)
+            print(f"Created new MLflow experiment: {experiment_name} (ID: {experiment_id})")
+        else:
+            print(f"Using existing MLflow experiment: {experiment_name} (ID: {experiment.experiment_id})")
+        
+        mlflow.set_experiment(experiment_name)
+        return True
+    except Exception as e:
+        print(f"MLflow experiment setup failed: {e}")
+        print("Continuing without MLflow logging...")
+        return False
+
+# Setup MLflow
+mlflow_available = setup_mlflow_experiment()
 
 # Initialize detectors globally with progress logging
 print("🤖 Loading adversarial detection models...")
@@ -109,6 +120,14 @@ def chat_and_detect(user_message, history):
     history = history or []
     history.append(("User", user_message))
 
+    # Start MLflow parent run if available
+    mlflow_run = None
+    if mlflow_available:
+        try:
+            mlflow_run = mlflow.start_run()
+        except Exception as e:
+            print(f"MLflow run start failed: {e}")
+
     try:
         # 1. Check adversarial prompt
         is_adv, reasoning = detect_adversarial_prompt(user_message, detectors)
@@ -158,6 +177,14 @@ def chat_and_detect(user_message, history):
     except Exception as e:
         history.append(("Bot", "An error occurred while processing your request."))
         flag_note = f"<p style='color:orange;font-weight:bold;'>Error: {str(e)}</p>"
+    
+    finally:
+        # Close MLflow run if it was started
+        if mlflow_run is not None:
+            try:
+                mlflow.end_run()
+            except Exception as e:
+                print(f"MLflow run end failed: {e}")
 
     end_time = time.time()
     final_time = end_time - start_time
