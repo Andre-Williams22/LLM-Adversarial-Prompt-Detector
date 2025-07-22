@@ -66,46 +66,27 @@ def health_check():
 
 @app.get("/")
 def home():
-    """Root endpoint with user-friendly HTML"""
-    return """
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Adversarial Prompt Detector</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
-            .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-            h1 { color: #007BFF; text-align: center; }
-            .links { text-align: center; margin-top: 30px; }
-            .links a { display: inline-block; margin: 10px 15px; padding: 12px 24px; background: #007BFF; color: white; text-decoration: none; border-radius: 5px; }
-            .links a:hover { background: #0056b3; }
-            .status { background: #e8f5e8; padding: 15px; border-radius: 5px; margin: 20px 0; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>🛡️ Adversarial Prompt Detector</h1>
-            <p>An AI assistant integrated with a detector for adversarial prompts, protecting against prompt injection attacks.</p>
-            
-            <div class="status">
-                <strong>✅ Service Status:</strong> Running<br>
-                <strong>🤖 Models:</strong> Loaded and Ready<br>
-                <strong>🔗 API:</strong> Available
-            </div>
-            
-            <div class="links">
-                <a href="/gradio" target="_blank">🚀 Launch ChatBot</a>
-                <a href="/health" target="_blank">🏥 Health Check</a>
-                <a href="/metrics" target="_blank">📊 Metrics</a>
-            </div>
-            
-            <p style="text-align: center; margin-top: 30px; color: #666;">
-                Built with FastAPI, Gradio, and Hugging Face Transformers
-            </p>
-        </div>
-    </body>
-    </html>
-    """
+    """Root endpoint with API information"""
+    return {
+        "message": "Welcome to the Adversarial Prompt Detector API",
+        "description": "An AI assistant integrated with a detector for adversarial prompts, protecting against prompt injection attacks.",
+        "status": "running",
+        "version": "1.0.0",
+        "endpoints": {
+            "chat_interface": "/gradio",
+            "health_check": "/health",
+            "metrics": "/metrics",
+        },
+        "services": {
+            "models_loaded": bool(detectors),
+            "model_count": len(detectors) if detectors else 0
+        },
+        "links": {
+            "chat": "https://safe-prompts.andrewilliams.ai/gradio",
+            "health": "https://safe-prompts.andrewilliams.ai/health",
+            "metrics": "https://safe-prompts.andrewilliams.ai/metrics",
+        }
+    }
 
 def chat_and_detect(user_message, history):
     start_time = time.time()
