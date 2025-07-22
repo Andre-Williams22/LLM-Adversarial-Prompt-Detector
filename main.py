@@ -1,6 +1,5 @@
 import os
 import time
-import torch
 import mlflow
 import gradio as gr
 from openai import OpenAI
@@ -21,12 +20,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # OpenAI API key setup
-openai_api_key = os.getenv("OPENAI_API_KEY")
-if not openai_api_key or openai_api_key == "your_openai_api_key_here":
-    logger.warning("OpenAI API key not configured. Chat functionality will be limited.")
-    client = None
-else:
-    client = OpenAI(api_key=openai_api_key)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Set up MLflow
 mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "file:///app/mlruns")
@@ -132,25 +126,16 @@ def health_check():
         models_status = bool(detectors)
         model_count = len(detectors) if detectors else 0
         
-        # Check service configurations (without exposing secrets)
-        services_config = {
-            "openai_configured": bool(client),
-            "mongodb_configured": hasattr(mongodb_manager, 'connection_string') and mongodb_manager.connection_string is not None,
-            "mlflow_configured": bool(mlflow_available)
-        }
-        
         return {
             "status": "healthy" if models_status else "unhealthy",
             "models_loaded": models_status,
             "model_count": model_count,
-            "services": services_config,
             "timestamp": time.time(),
             "version": "1.0.0",
             "endpoints": {
                 "chat": "/chat",
                 "metrics": "/metrics",
-                "health": "/health",
-                "stats": "/stats"
+                "health": "/health"
             }
         }
     except Exception as e:
@@ -263,17 +248,13 @@ def chat_and_detect(user_message, history):
             messages.append({"role": "user", "content": user_message})
 
             # Call the OpenAI ChatGPT API
-            if client:
-                response = client.chat.completions.create(
-                    model="gpt-4o-mini",  # Using a valid OpenAI model
-                    messages=messages,  # Pass the entire list of messages
-                )
-                print("Response from OpenAI:", response)
-                bot_response = response.choices[0].message.content
-                history.append(("Bot", bot_response))
-            else:
-                bot_response = "OpenAI API not configured. Chat functionality is disabled."
-                history.append(("Bot", bot_response))
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",  # Using a valid OpenAI model
+                messages=messages,  # Pass the entire list of messages
+            )
+            print("Response from OpenAI:", response)
+            bot_response = response.choices[0].message.content
+            history.append(("Bot", bot_response))
 
             flag_note = (
                 f"<p style='color:green;font-weight:bold;'>"
@@ -296,7 +277,7 @@ def chat_and_detect(user_message, history):
     try:
         detection_results = {
             "is_adversarial": is_adv,
-            "scores": reasoning.get("scores", []),  # Changed from {} to []
+            "scores": reasoning.get("scores", {}),
             "reason": reasoning.get("reason", ""),
             "threshold": reasoning.get("threshold", 0.0)
         }
