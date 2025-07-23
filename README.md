@@ -316,7 +316,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 For questions, issues, or contributions:
-- 📧 **Email**: andre.williams@example.com
 - 🐛 **Issues**: [GitHub Issues](https://github.com/Andre-Williams22/LLM-Adversarial-Prompt-Detector/issues)
 - 💬 **Discussions**: [GitHub Discussions](https://github.com/Andre-Williams22/LLM-Adversarial-Prompt-Detector/discussions)
 
