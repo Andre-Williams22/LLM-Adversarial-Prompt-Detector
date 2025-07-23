@@ -116,6 +116,27 @@ async def favicon():
     favicon_data = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xdb\x00\x00\x00\x00IEND\xaeB`\x82'
     return Response(content=favicon_data, media_type="image/png")
 
+@app.get("/manifest.json")
+async def manifest():
+    """PWA manifest file"""
+    manifest_data = {
+        "name": "Adversarial Prompt Detector",
+        "short_name": "AdversarialDetector", 
+        "description": "AI assistant with adversarial prompt detection and safety filtering",
+        "start_url": "/chat",
+        "display": "standalone",
+        "background_color": "#ffffff",
+        "theme_color": "#007BFF",
+        "icons": [
+            {
+                "src": "/favicon.ico",
+                "sizes": "16x16", 
+                "type": "image/x-icon"
+            }
+        ]
+    }
+    return manifest_data
+
 @app.get("/metrics")
 def metrics():
     """Prometheus metrics endpoint"""
@@ -219,24 +240,39 @@ def chat_and_detect(user_message, history):
         
         # Use sync wrapper for the async detection function
         try:
-            # Import at function level to avoid circular imports
             import asyncio
-            from concurrent.futures import ThreadPoolExecutor
+            import threading
             
-            # Create a thread pool to run async function
-            def run_detection():
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
+            # Store result in a thread-safe way
+            detection_result = {"result": None, "error": None}
+            
+            def detection_thread():
+                """Background thread for async detection"""
                 try:
+                    # Create new event loop for this thread
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    # Run the async detection
                     result = loop.run_until_complete(detect_adversarial_prompt_fast(user_message))
-                    return result
-                finally:
+                    detection_result["result"] = result
+                    
                     loop.close()
+                    
+                except Exception as e:
+                    detection_result["error"] = str(e)
             
-            # Run detection in thread pool to avoid event loop conflicts
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(run_detection)
-                is_adv, reasoning = future.result(timeout=30)  # 30 second timeout
+            # Run detection in background thread and wait for completion
+            thread = threading.Thread(target=detection_thread)
+            thread.start()
+            thread.join(timeout=30)  # 30 second timeout
+            
+            if detection_result["error"]:
+                raise Exception(detection_result["error"])
+            elif detection_result["result"]:
+                is_adv, reasoning = detection_result["result"]
+            else:
+                raise Exception("Detection thread timeout or no result")
                 
         except Exception as detection_error:
             logger.error(f"Detection failed: {detection_error}")
@@ -316,7 +352,7 @@ def chat_and_detect(user_message, history):
     final_time = end_time - start_time
     print("latency in ms", final_time)
     
-    # Log to MongoDB (async, non-blocking)
+    # Log to MongoDB (async, non-blocking) - using fire-and-forget approach
     try:
         detection_results = {
             "is_adversarial": is_adv,
@@ -325,11 +361,18 @@ def chat_and_detect(user_message, history):
             "threshold": reasoning.get("threshold", 0.0)
         }
         
-        # Run MongoDB logging in background thread to avoid event loop conflicts
-        def log_to_mongodb():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
+        # Use a simple background thread approach that's more reliable
+        import threading
+        
+        def mongodb_logging_thread():
+            """Background thread for MongoDB logging"""
             try:
+                import asyncio
+                # Create new event loop for this thread
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                # Run the async logging function
                 loop.run_until_complete(
                     mongodb_manager.log_chat_interaction(
                         user_message=user_message,
@@ -339,18 +382,18 @@ def chat_and_detect(user_message, history):
                         session_id=session_id
                     )
                 )
-            except Exception as e:
-                logger.error(f"MongoDB logging failed: {e}")
-            finally:
                 loop.close()
+                logger.info("MongoDB logging completed successfully")
+                
+            except Exception as thread_error:
+                logger.error(f"MongoDB logging thread error: {thread_error}")
         
-        # Run in background thread
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=1) as executor:
-            executor.submit(log_to_mongodb)
-            
+        # Start background thread (fire and forget)
+        thread = threading.Thread(target=mongodb_logging_thread, daemon=True)
+        thread.start()
+        
     except Exception as mongo_error:
-        logger.error(f"Failed to setup MongoDB logging: {mongo_error}")
+        logger.error(f"Failed to setup MongoDB logging thread: {mongo_error}")
         # Continue without MongoDB logging
 
     return history, history, flag_note

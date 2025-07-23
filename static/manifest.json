@@ -1,0 +1,16 @@
+{
+  "name": "Adversarial Prompt Detector",
+  "short_name": "AdversarialDetector",
+  "description": "AI assistant with adversarial prompt detection and safety filtering",
+  "start_url": "/chat",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007BFF",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
