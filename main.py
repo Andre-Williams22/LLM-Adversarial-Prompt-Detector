@@ -193,9 +193,19 @@ async def get_statistics():
         }
 
 def chat_and_detect(user_message, history):
+    """
+    Chat function with robust error handling and asyncio compatibility
+    Returns: (history, history, flag_note) tuple for Gradio interface
+    """
     start_time = time.time()
     history = history or []
     history.append(("User", user_message))
+    
+    # Initialize defaults
+    bot_response = "An error occurred while processing your request."
+    flag_note = "<p style='color:red;'>Processing error</p>"
+    is_adv = False
+    reasoning = {"reason": "Unknown", "scores": [0.0, 0.0, 0.0, 0.0], "threshold": 0.5}
     
     # Generate session ID for this conversation
     session_id = str(uuid.uuid4())
@@ -207,12 +217,35 @@ def chat_and_detect(user_message, history):
         # 1. Fast adversarial prompt detection
         detection_start = time.time()
         
-        # Use async detection in sync context
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        is_adv, reasoning = loop.run_until_complete(detect_adversarial_prompt_fast(user_message))
-        loop.close()
+        # Use sync wrapper for the async detection function
+        try:
+            # Import at function level to avoid circular imports
+            import asyncio
+            from concurrent.futures import ThreadPoolExecutor
+            
+            # Create a thread pool to run async function
+            def run_detection():
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(detect_adversarial_prompt_fast(user_message))
+                    return result
+                finally:
+                    loop.close()
+            
+            # Run detection in thread pool to avoid event loop conflicts
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                future = executor.submit(run_detection)
+                is_adv, reasoning = future.result(timeout=30)  # 30 second timeout
+                
+        except Exception as detection_error:
+            logger.error(f"Detection failed: {detection_error}")
+            # Fallback to safe behavior
+            is_adv, reasoning = False, {
+                "reason": f"Detection error: {str(detection_error)}",
+                "scores": [0.0, 0.0, 0.0, 0.0],
+                "threshold": 0.5
+            }
         
         detection_duration = time.time() - detection_start
         
@@ -292,18 +325,32 @@ def chat_and_detect(user_message, history):
             "threshold": reasoning.get("threshold", 0.0)
         }
         
-        # Run MongoDB logging in background using current event loop
-        asyncio.create_task(
-            mongodb_manager.log_chat_interaction(
-                user_message=user_message,
-                bot_response=bot_response,
-                detection_results=detection_results,
-                latency=final_time,
-                session_id=session_id
-            )
-        )
+        # Run MongoDB logging in background thread to avoid event loop conflicts
+        def log_to_mongodb():
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(
+                    mongodb_manager.log_chat_interaction(
+                        user_message=user_message,
+                        bot_response=bot_response,
+                        detection_results=detection_results,
+                        latency=final_time,
+                        session_id=session_id
+                    )
+                )
+            except Exception as e:
+                logger.error(f"MongoDB logging failed: {e}")
+            finally:
+                loop.close()
+        
+        # Run in background thread
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(log_to_mongodb)
+            
     except Exception as mongo_error:
-        logger.error(f"Failed to log to MongoDB: {mongo_error}")
+        logger.error(f"Failed to setup MongoDB logging: {mongo_error}")
         # Continue without MongoDB logging
 
     return history, history, flag_note
