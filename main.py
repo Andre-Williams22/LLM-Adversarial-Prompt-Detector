@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.responses import Response
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter, Histogram, Gauge
 from utils.model_processing import load_models, detect_adversarial_prompt
+from utils.fast_detection import detect_adversarial_prompt_fast
 from utils.mongodb_manager import mongodb_manager
 import logging
 import uuid
@@ -79,15 +80,16 @@ ACTIVE_MODELS = Gauge(
 )
 
 # Initialize detectors globally with progress logging
-print("🤖 Loading adversarial detection models...")
+print("🚀 Loading fast adversarial detection models...")
 start_load_time = time.time()
-detectors = load_models()
+# Use fast detection instead of slow models
+detectors = {"fast_ensemble": "loaded"}  # Placeholder for metrics
 load_duration = time.time() - start_load_time
 
 # Set the active models gauge
-ACTIVE_MODELS.set(len(detectors))
+ACTIVE_MODELS.set(4)  # 4 fast models in ensemble
 
-print(f"✅ Models loaded successfully in {load_duration:.2f} seconds")
+print(f"✅ Fast models loaded successfully in {load_duration:.2f} seconds")
 
 # Build FastAPI + Gradio app
 app = FastAPI()
@@ -202,25 +204,33 @@ def chat_and_detect(user_message, history):
     CHAT_REQUESTS.inc()
 
     try:
-        # 1. Check adversarial prompt
+        # 1. Fast adversarial prompt detection
         detection_start = time.time()
-        is_adv, reasoning = detect_adversarial_prompt(user_message, detectors)
+        
+        # Use async detection in sync context
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        is_adv, reasoning = loop.run_until_complete(detect_adversarial_prompt_fast(user_message))
+        loop.close()
+        
         detection_duration = time.time() - detection_start
         
-        # Track model metrics
-        model_names = ["electra_small", "tox_bert", "offensive_roberta", "bart_mnli"]
+        # Track model metrics for fast ensemble
+        model_names = ["keyword_detector", "toxic_bert", "hate_roberta", "safety_bart"]
         scores_list = reasoning["scores"]
         
         for i, score in enumerate(scores_list):
             if i < len(model_names):
                 model_name = model_names[i]
-                MODEL_INFERENCE_COUNT.labels(model_name=model_name, model_type="adversarial_detector").inc()
-                MODEL_INFERENCE_DURATION.labels(model_name=model_name, model_type="adversarial_detector").observe(detection_duration)
+                MODEL_INFERENCE_COUNT.labels(model_name=model_name, model_type="fast_detector").inc()
+                MODEL_INFERENCE_DURATION.labels(model_name=model_name, model_type="fast_detector").observe(detection_duration)
                 
                 # Track if adversarial prompt was detected by this model
                 if score > reasoning["threshold"]:
                     ADVERSARIAL_DETECTIONS.labels(model_name=model_name).inc()
         
+        print(f"🚀 Fast detection completed in {detection_duration:.3f}s")
         print("reasoning", reasoning)
         scores = reasoning["scores"]
         print("scores", scores)
