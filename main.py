@@ -265,23 +265,37 @@ def chat_and_detect(user_message, history):
             # Run detection in background thread and wait for completion
             thread = threading.Thread(target=detection_thread)
             thread.start()
-            thread.join(timeout=30)  # 30 second timeout
+            thread.join(timeout=60)  # Increase timeout to 60 seconds
             
             if detection_result["error"]:
                 raise Exception(detection_result["error"])
             elif detection_result["result"]:
                 is_adv, reasoning = detection_result["result"]
             else:
-                raise Exception("Detection thread timeout or no result")
+                # Log more details about the timeout
+                logger.error(f"Detection thread timeout after 60 seconds for message: {user_message[:100]}...")
+                raise Exception("Detection thread timeout after 60 seconds")
                 
         except Exception as detection_error:
             logger.error(f"Detection failed: {detection_error}")
-            # Fallback to safe behavior
-            is_adv, reasoning = False, {
-                "reason": f"Detection error: {str(detection_error)}",
-                "scores": [0.0, 0.0, 0.0, 0.0],
+            # Enhanced fallback with basic keyword detection
+            user_message_lower = user_message.lower()
+            basic_adversarial_keywords = [
+                "ignore", "jailbreak", "bypass", "override", "previous instructions",
+                "act as", "pretend", "roleplay", "system prompt", "admin", "root",
+                "prompt injection", "escape", "break out", "sudo", "developer mode"
+            ]
+            
+            # Simple keyword-based fallback detection
+            keyword_detected = any(keyword in user_message_lower for keyword in basic_adversarial_keywords)
+            
+            is_adv, reasoning = keyword_detected, {
+                "reason": f"Fallback detection - {'Basic keyword match' if keyword_detected else 'No obvious patterns'}: {str(detection_error)}",
+                "scores": [0.8 if keyword_detected else 0.1, 0.0, 0.0, 0.0],
                 "threshold": 0.5
             }
+            
+            logger.info(f"Using fallback detection: {is_adv} - {reasoning['reason']}")
         
         detection_duration = time.time() - detection_start
         
@@ -352,7 +366,7 @@ def chat_and_detect(user_message, history):
     final_time = end_time - start_time
     print("latency in ms", final_time)
     
-    # Log to MongoDB (async, non-blocking) - using fire-and-forget approach
+    # Log to MongoDB (simplified approach to avoid event loop issues)
     try:
         detection_results = {
             "is_adversarial": is_adv,
@@ -361,40 +375,43 @@ def chat_and_detect(user_message, history):
             "threshold": reasoning.get("threshold", 0.0)
         }
         
-        # Use a simple background thread approach that's more reliable
-        import threading
-        
+        # Simplified MongoDB logging to avoid asyncio issues
         def mongodb_logging_thread():
-            """Background thread for MongoDB logging"""
+            """Background thread for MongoDB logging - fire and forget"""
             try:
                 import asyncio
-                # Create new event loop for this thread
+                import time
+                
+                # Create completely isolated event loop
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
                 
                 # Run the async logging function
-                loop.run_until_complete(
-                    mongodb_manager.log_chat_interaction(
-                        user_message=user_message,
-                        bot_response=bot_response,
-                        detection_results=detection_results,
-                        latency=final_time,
-                        session_id=session_id
-                    )
+                coro = mongodb_manager.log_chat_interaction(
+                    user_message=user_message,
+                    bot_response=bot_response,
+                    detection_results=detection_results,
+                    latency=final_time,
+                    session_id=session_id
                 )
+                
+                loop.run_until_complete(coro)
                 loop.close()
+                
                 logger.info("MongoDB logging completed successfully")
                 
             except Exception as thread_error:
                 logger.error(f"MongoDB logging thread error: {thread_error}")
+                # Don't crash the main thread
         
-        # Start background thread (fire and forget)
-        thread = threading.Thread(target=mongodb_logging_thread, daemon=True)
+        # Start background thread as daemon (fire and forget)
+        import threading
+        thread = threading.Thread(target=mongodb_logging_thread, daemon=True, name="mongodb-logger")
         thread.start()
         
     except Exception as mongo_error:
         logger.error(f"Failed to setup MongoDB logging thread: {mongo_error}")
-        # Continue without MongoDB logging
+        # Continue without MongoDB logging - don't crash the main flow
 
     return history, history, flag_note
 
