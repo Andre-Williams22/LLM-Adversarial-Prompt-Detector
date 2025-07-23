@@ -522,3 +522,86 @@ MAX_PARALLEL_WORKERS=3
 MLFLOW_TRACKING_URI=http://localhost:5000
 MLFLOW_EXPERIMENT_NAME=fast_adversarial_detection
 ```
+
+---
+
+## 📚 References & Research Papers
+
+### **Foundational Adversarial AI Research**
+
+1. **Goodfellow, I., Shlens, J., & Szegedy, C.** (2014). *Explaining and Harnessing Adversarial Examples*. arXiv preprint arXiv:1412.6572.
+
+2. **Szegedy, C., Zaremba, W., Sutskever, I., Bruna, J., Erhan, D., Goodfellow, I., & Fergus, R.** (2013). *Intriguing properties of neural networks*. arXiv preprint arXiv:1312.6199.
+
+3. **Carlini, N., & Wagner, D.** (2017). *Towards evaluating the robustness of neural networks*. In 2017 ieee symposium on security and privacy (sp) (pp. 39-57). IEEE.
+
+### **Prompt Injection & Jailbreak Research**
+
+4. **Wei, A., Haghtalab, N., & Steinhardt, J.** (2023). *Jailbroken: How Does LLM Safety Training Fail?* arXiv preprint arXiv:2307.02483.
+
+5. **Liu, Y., Deng, G., Xu, Z., Li, Y., Zheng, Y., Zhang, P., ... & Yang, Y.** (2023). *Jailbreaking ChatGPT via Prompt Engineering: An Empirical Study*. arXiv preprint arXiv:2305.13860.
+
+6. **Perez, F., & Ribeiro, I.** (2022). *Ignore Previous Prompt: Attack Techniques For Language Models*. arXiv preprint arXiv:2211.09527.
+
+7. **Greshake, K., Abdelnabi, S., Mishra, S., Endres, C., Holz, T., & Fritz, M.** (2023). *Not what you've signed up for: Compromising Real-World LLM-Integrated Applications with Indirect Prompt Injection*. arXiv preprint arXiv:2302.12173.
+
+### **Anthropic Research Papers**
+
+8. **Ganguli, D., Lovitt, L., Kernion, J., Askell, A., Bai, Y., Kadavath, S., ... & Clark, J.** (2022). *Red Teaming Language Models to Reduce Harms: Methods, Scaling Behaviors, and Lessons Learned*. arXiv preprint arXiv:2209.07858. **[Anthropic]**
+
+9. **Bai, Y., Jones, A., Ndousse, K., Askell, A., Chen, A., DasSarma, N., ... & Kaplan, J.** (2022). *Training a Helpful and Harmless Assistant with Reinforcement Learning from Human Feedback*. arXiv preprint arXiv:2204.05862. **[Anthropic]**
+
+10. **Askell, A., Bai, Y., Chen, A., Drain, D., Ganguli, D., Henighan, T., ... & Kaplan, J.** (2021). *A General Language Assistant as a Laboratory for Alignment*. arXiv preprint arXiv:2112.00861. **[Anthropic]**
+
+11. **Ganguli, D., Hernandez, D., Lovitt, L., Ndousse, K., Kernion, J., Lukošiūtė, K., ... & Kaplan, J.** (2022). *The Capacity for Moral Self-Correction in Large Language Models*. arXiv preprint arXiv:2302.07459. **[Anthropic]**
+
+12. **Perez, E., Ringer, S., Lukošiūtė, K., Nguyen, K., Chen, E., Heiner, S., ... & Kaplan, J.** (2022). *Discovering Language Model Behaviors with Model-Written Evaluations*. arXiv preprint arXiv:2212.09251. **[Anthropic]**
+
+### **Detection & Defense Mechanisms**
+
+13. **Jain, N., Schwarzschild, A., Wen, Y., Somepalli, G., Kirchenbauer, J., Chiang, P. Y., ... & Goldstein, T.** (2023). *Baseline Defenses for Adversarial Attacks Against Aligned Language Models*. arXiv preprint arXiv:2309.00614.
+
+14. **Robey, A., Wong, E., Hassani, H., & Pappas, G. J.** (2023). *SmoothLLM: Defending Large Language Models Against Jailbreaking Attacks*. arXiv preprint arXiv:2310.03684.
+
+15. **Kumar, A., Agarwal, C., Srinivas, S., Feizi, S., & Lakkaraju, H.** (2023). *Certifying LLM Safety against Adversarial Prompting*. arXiv preprint arXiv:2309.02705.
+
+### **Toxicity & Hate Speech Detection Models**
+
+16. **Founta, A. M., Djouvas, C., Chatzakou, D., Leontiadis, I., Blackburn, J., Stringhini, G., ... & Kourtellis, N.** (2018). *Large Scale Crowdsourcing and Characterization of Twitter Abusive Behavior*. arXiv preprint arXiv:1802.00393.
+
+17. **Davidson, T., Warmsley, D., Macy, M., & Weber, I.** (2017). *Hate Speech Detection with a Computational Approach*. arXiv preprint arXiv:1703.04009.
+
+18. **Hanu, L., & Unitary team** (2020). *Detoxify*. GitHub repository: https://github.com/unitaryai/detoxify
+
+### **Ensemble Methods & Multi-Model Systems**
+
+19. **Dietterich, T. G.** (2000). *Ensemble methods in machine learning*. In International workshop on multiple classifier systems (pp. 1-15). Springer.
+
+20. **Zhou, Z. H.** (2012). *Ensemble methods: foundations and algorithms*. CRC press.
+
+21. **Kuncheva, L. I.** (2014). *Combining pattern classifiers: methods and algorithms*. John Wiley & Sons.
+
+### **Production ML Systems & Monitoring**
+
+22. **Sculley, D., Holt, G., Golovin, D., Davydov, E., Phillips, T., Ebner, D., ... & Dennison, D.** (2015). *Hidden technical debt in machine learning systems*. Advances in neural information processing systems, 28.
+
+23. **Breck, E., Cai, S., Nielsen, E., Salib, M., & Sculley, D.** (2017). *The ML test score: A rubric for ML production readiness and technical debt reduction*. In 2017 IEEE International Conference on Big Data (Big Data) (pp. 1123-1132). IEEE.
+
+### **Benchmarks & Evaluation Datasets**
+
+24. **Mazeika, M., Phan, L., Yin, X., Zou, A., Wang, Z., Mu, N., ... & Hendrycks, D.** (2024). *HarmBench: A Standardized Evaluation Framework for Automated Red Teaming and Robust Refusal*. arXiv preprint arXiv:2402.04249.
+
+25. **Chao, P., Robey, A., Dobriban, E., Hassani, H., Pappas, G. J., & Wong, E.** (2023). *Jailbreaking Black Box Large Language Models in Twenty Queries*. arXiv preprint arXiv:2310.08419.
+
+---
+
+### **Additional Resources**
+
+- **OWASP LLM Top 10**: https://owasp.org/www-project-top-10-for-large-language-model-applications/
+- **Anthropic's Constitutional AI**: https://www.anthropic.com/research/constitutional-ai-harmlessness-from-ai-feedback
+- **HuggingFace Model Safety**: https://huggingface.co/docs/hub/security
+- **MLOps Production Guidelines**: https://ml-ops.org/
+
+---
+
+*This system implements cutting-edge research in adversarial prompt detection, combining multiple detection strategies with production-grade monitoring and deployment capabilities.*
