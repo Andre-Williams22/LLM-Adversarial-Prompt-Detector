@@ -292,11 +292,8 @@ def chat_and_detect(user_message, history):
             "threshold": reasoning.get("threshold", 0.0)
         }
         
-        # Run MongoDB logging in background
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(
+        # Run MongoDB logging in background using current event loop
+        asyncio.create_task(
             mongodb_manager.log_chat_interaction(
                 user_message=user_message,
                 bot_response=bot_response,
@@ -305,7 +302,6 @@ def chat_and_detect(user_message, history):
                 session_id=session_id
             )
         )
-        loop.close()
     except Exception as mongo_error:
         logger.error(f"Failed to log to MongoDB: {mongo_error}")
         # Continue without MongoDB logging
