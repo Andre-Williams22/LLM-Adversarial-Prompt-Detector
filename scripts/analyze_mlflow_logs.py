@@ -10,7 +10,7 @@ from datetime import datetime, timedelta
 
 def analyze_model_performance():
     """Analyze individual model performance from MLflow logs"""
-    print("📊 Individual Model Performance Analysis")
+    print("Individual Model Performance Analysis")
     print("=" * 50)
     
     # Set experiment for all runs (single experiment structure)
@@ -38,11 +38,11 @@ def analyze_model_performance():
         'params.adversarial': lambda x: (x == 'True').sum()
     }).round(3)
     
-    print("\n🔍 Model Performance Summary:")
+    print("\nModel Performance Summary:")
     print(model_stats)
     
     # Detection rate by model
-    print("\n🚨 Adversarial Detection Rate by Model:")
+    print("\nAdversarial Detection Rate by Model:")
     for model_name in runs['params.model_name'].unique():
         model_runs = runs[runs['params.model_name'] == model_name]
         total = len(model_runs)
@@ -52,7 +52,7 @@ def analyze_model_performance():
 
 def analyze_ensemble_decisions():
     """Analyze ensemble decision patterns from MLflow logs"""
-    print("\n📊 Ensemble Decision Analysis")
+    print("\nEnsemble Decision Analysis")
     print("=" * 50)
     
     # Set experiment (same single experiment)

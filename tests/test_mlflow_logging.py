@@ -12,7 +12,7 @@ def test_sample_prompts():
     """Test various prompt types to generate MLflow data"""
     
     # Initialize detector with different sensitivity modes
-    print("🚀 Starting MLflow Logging Test")
+    print("Starting MLflow Logging Test")
     print("=" * 50)
     
     # Test prompts - mix of safe and adversarial
@@ -88,7 +88,7 @@ def test_sample_prompts():
     total_tests = 0
     
     for mode in sensitivity_modes:
-        print(f"\n🔧 Testing with {mode} sensitivity mode...")
+        print(f"\nTesting with {mode} sensitivity mode...")
         detector = FastAdversarialDetector(sensitivity_mode=mode)
         
         for i, prompt_data in enumerate(test_prompts):
@@ -111,7 +111,7 @@ def test_sample_prompts():
                 }
                 
                 # Print result
-                status = "🚨 ADVERSARIAL" if result["is_adversarial"] else "✅ SAFE"
+                status = "ADVERSARIAL" if result["is_adversarial"] else "SAFE"
                 inference_time = (end_time - start_time) * 1000
                 
                 print(f"       Result: {status} | {inference_time:.1f}ms | {result['reason']}")
@@ -122,17 +122,17 @@ def test_sample_prompts():
                 time.sleep(0.1)
                 
             except Exception as e:
-                print(f"       ❌ Error: {e}")
+                print(f"       Error: {e}")
     
-    print(f"\n✅ Test Complete!")
-    print(f"📊 Generated {total_tests} detection runs across {len(sensitivity_modes)} sensitivity modes")
-    print(f"🔍 Check MLflow UI at: http://localhost:5000")
+    print(f"\nTest Complete!")
+    print(f"Generated {total_tests} detection runs across {len(sensitivity_modes)} sensitivity modes")
+    print(f"Check MLflow UI at: http://localhost:5000")
     print(f"📁 Experiment: adversarial_detection_system")
 
 def run_analysis_after_test():
     """Run the analysis script to show immediate results"""
     print(f"\n" + "="*60)
-    print("🔬 RUNNING ANALYSIS ON GENERATED DATA")
+    print("RUNNING ANALYSIS ON GENERATED DATA")
     print("="*60)
     
     try:
@@ -141,11 +141,11 @@ def run_analysis_after_test():
         exec(open('scripts/analyze_mlflow_logs.py').read())
         
     except Exception as e:
-        print(f"❌ Analysis failed: {e}")
+        print(f"Analysis failed: {e}")
         print("You can run analysis manually with: python scripts/analyze_mlflow_logs.py")
 
 if __name__ == "__main__":
-    print("🧪 MLflow Logging Test Suite")
+    print("MLflow Logging Test Suite")
     print("This will generate sample detection data for MLflow analysis")
     print()
     
@@ -156,7 +156,7 @@ if __name__ == "__main__":
     run_analysis_after_test()
     
     print(f"\n" + "="*60)
-    print("🎯 NEXT STEPS:")
+    print("NEXT STEPS:")
     print("1. Open MLflow UI: http://localhost:5000")
     print("2. Navigate to 'adversarial_detection_system' experiment")
     print("3. View individual model runs and ensemble decisions")

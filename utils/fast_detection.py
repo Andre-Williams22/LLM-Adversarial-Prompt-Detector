@@ -68,15 +68,15 @@ class FastAdversarialDetector:
         try:
             # Single experiment for all models and ensemble decisions
             mlflow.set_experiment("adversarial_detection_system")
-            print("✅ MLflow experiment tracking enabled: adversarial_detection_system")
+            print("MLflow experiment tracking enabled: adversarial_detection_system")
             
         except Exception as e:
-            print(f"⚠️ MLflow setup failed: {e}, continuing without tracking")
+            print(f"MLflow setup failed: {e}, continuing without tracking")
     
     @lru_cache(maxsize=1)
     def load_fast_models(self) -> Dict:
         """Load optimized, fast models"""
-        print("🚀 Loading optimized models...")
+        print("Loading optimized models...")
         
         # Set CPU optimizations
         torch.set_num_threads(2)  # Limit threads for faster startup
@@ -107,7 +107,7 @@ class FastAdversarialDetector:
         # 4. Enhanced keyword detector (instant)
         models['keyword_detector'] = self.create_keyword_detector()
         
-        print(f"✅ Loaded {len(models)} optimized models")
+        print(f"Loaded {len(models)} optimized models")
         return models
     
     def create_keyword_detector(self):
