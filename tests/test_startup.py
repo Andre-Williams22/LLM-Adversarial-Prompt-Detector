@@ -16,7 +16,7 @@ def test_imports():
         import time
         import mlflow
         import gradio as gr
-        from openai import OpenAI
+        # from openai import OpenAI  # Commented out for speed optimization
         from dotenv import load_dotenv
         from fastapi import FastAPI
         from fastapi.responses import Response
@@ -43,11 +43,13 @@ def test_environment():
         from dotenv import load_dotenv
         load_dotenv()
         
-        openai_key = os.getenv("OPENAI_API_KEY")
-        if openai_key:
-            print(f"✅ OpenAI API key found (length: {len(openai_key)})")
-        else:
-            print("⚠️ OpenAI API key not found")
+        # OpenAI API test commented out for speed optimization
+        # openai_key = os.getenv("OPENAI_API_KEY")
+        # if openai_key:
+        #     print(f"OpenAI API key found (length: {len(openai_key)})")
+        # else:
+        #     print("OpenAI API key not found")
+        print("OpenAI API checks disabled for speed optimization")
             
         mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "file:///app/mlruns")
         print(f"✅ MLflow URI: {mlflow_uri}")

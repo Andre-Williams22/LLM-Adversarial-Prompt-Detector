@@ -2,6 +2,11 @@ import os
 import time
 import mlflow
 import gradio as gr
+import logging
+import uuid
+import threading
+import asyncio
+import uvicorn
 # from openai import OpenAI  # Commented out for speed optimization
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -10,8 +15,6 @@ from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter, His
 from utils.model_processing import load_models, detect_adversarial_prompt
 from utils.fast_detection import detect_adversarial_prompt_fast
 from utils.mongodb_manager import mongodb_manager
-import logging
-import uuid
 
 # Load environment variables
 load_dotenv()
@@ -161,7 +164,6 @@ async def warm_up_models():
         }
     
     # Start loading in background
-    import threading
     
     def load_models_background():
         ensure_models_loaded()
@@ -312,14 +314,10 @@ def ensure_models_loaded():
     # Start loading models
     models_loading = True
     try:
-        print("🔄 Loading ML models (first request - this may take 30-60 seconds)...")
+        print("Loading ML models (first request - this may take 30-60 seconds)...")
         start_time = time.time()
         
-        # Import and test the fast detection system
-        from utils.fast_detection import detect_adversarial_prompt_fast
-        
         # Test with a simple message to ensure models load
-        import asyncio
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
@@ -391,9 +389,6 @@ def chat_and_detect(user_message, history):
             
             # Use sync wrapper for the async detection function
             try:
-                import asyncio
-                import threading
-                
                 # Store result in a thread-safe way
                 detection_result = {"result": None, "error": None}
                 
@@ -537,9 +532,6 @@ def chat_and_detect(user_message, history):
         def mongodb_logging_thread():
             """Background thread for MongoDB logging - fire and forget"""
             try:
-                import asyncio
-                import time
-                
                 # Create completely isolated event loop
                 loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(loop)
@@ -563,7 +555,6 @@ def chat_and_detect(user_message, history):
                 # Don't crash the main thread
         
         # Start background thread as daemon (fire and forget)
-        import threading
         thread = threading.Thread(target=mongodb_logging_thread, daemon=True, name="mongodb-logger")
         thread.start()
         
@@ -618,6 +609,5 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
 app = gr.mount_gradio_app(app, demo, path="/chat")
 
 if __name__ == "__main__":
-    import uvicorn
     # Use port 80 to match Dockerfile, single worker for better resource usage
     uvicorn.run(app, host="0.0.0.0", port=80, workers=1)
