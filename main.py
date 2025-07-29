@@ -2,7 +2,7 @@ import os
 import time
 import mlflow
 import gradio as gr
-from openai import OpenAI
+# from openai import OpenAI  # Commented out for speed optimization
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import Response
@@ -20,8 +20,8 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# OpenAI API key setup
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# OpenAI API key setup - Commented out for speed optimization
+# client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Set up MLflow
 mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "file:///app/mlruns")
@@ -495,13 +495,16 @@ def chat_and_detect(user_message, history):
             # Add the most recent user message
             messages.append({"role": "user", "content": user_message})
 
-            # Call the OpenAI ChatGPT API
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",  # Using a valid OpenAI model
-                messages=messages,  # Pass the entire list of messages
-            )
-            print("Response from OpenAI:", response)
-            bot_response = response.choices[0].message.content
+            # OpenAI API call commented out for speed optimization
+            # response = client.chat.completions.create(
+            #     model="gpt-4o-mini",  # Using a valid OpenAI model
+            #     messages=messages,  # Pass the entire list of messages
+            # )
+            # print("Response from OpenAI:", response)
+            # bot_response = response.choices[0].message.content
+            
+            # Mock response for speed optimization
+            bot_response = f"This is a mock response to your message: '{user_message}'. The adversarial detection system determined this prompt is safe."
             history.append(("Bot", bot_response))
 
             flag_note = (
@@ -582,8 +585,8 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         </style>
     """)
     gr.Markdown("""
-        <h1 style="text-align:center;color:#007BFF;">ChatGPT + Adversarial Prompt Detector</h1>
-        <p style="text-align:center;color:#555;">An AI assistant integrated with a detector for adversarial prompts.</p>
+        <h1 style="text-align:center;color:#007BFF;">AI Safety Detector + Mock Chat Interface</h1>
+        <p style="text-align:center;color:#555;">An AI safety system with mock responses (OpenAI disabled for speed optimization).</p>
         <div id="loading-notice" style="text-align:center;background:#f8f9fa;padding:15px;border-radius:8px;margin:10px 0;">
             <p style="color:#6c757d;margin:0;">
                 <strong>Note:</strong> The first message may take 30-60 seconds as ML models load. 
@@ -592,7 +595,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             </p>
         </div>
     """)
-    chatbot = gr.Chatbot(label="ChatGPT + Detector", elem_id="chatbox")
+    chatbot = gr.Chatbot(label="Safety Detector + Mock Chat", elem_id="chatbox")
     state = gr.State([])  # Holds chat history as list of (role, msg)
     user_in = gr.Textbox(
         placeholder="Ask anything here …",
