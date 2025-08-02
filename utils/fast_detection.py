@@ -69,10 +69,17 @@ class FastAdversarialDetector:
     def setup_mlflow(self):
         """Setup single MLflow experiment for all model runs"""
         try:
-            # Set the correct tracking URI to project directory (same as main.py)
-            project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up one more level from utils/
-            tracking_uri = f"file://{project_dir}/mlruns"
-            mlflow.set_tracking_uri(tracking_uri)
+            # Use MLFLOW_TRACKING_URI environment variable if set, otherwise use local file store
+            tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+            if tracking_uri:
+                print(f"Using MLflow tracking URI from environment: {tracking_uri}", flush=True)
+                mlflow.set_tracking_uri(tracking_uri)
+            else:
+                # Fallback to local file store for development
+                project_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Go up one more level from utils/
+                tracking_uri = f"file://{project_dir}/mlruns"
+                print(f"Using local MLflow tracking URI: {tracking_uri}", flush=True)
+                mlflow.set_tracking_uri(tracking_uri)
             
             # Single experiment for all models and ensemble decisions
             mlflow.set_experiment("adversarial_detection_system")  # Match main.py experiment name

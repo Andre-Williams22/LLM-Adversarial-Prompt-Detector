@@ -66,6 +66,15 @@ sys.stderr.reconfigure(line_buffering=True)
 def setup_mlflow_experiment():
     experiment_name = "adversarial_detection_system"
     try:
+        # Use MLFLOW_TRACKING_URI environment variable if set, otherwise use local file store
+        tracking_uri = os.getenv("MLFLOW_TRACKING_URI")
+        if tracking_uri:
+            print(f"Using MLflow tracking URI from environment: {tracking_uri}")
+            mlflow.set_tracking_uri(tracking_uri)
+        else:
+            # This should match the local setup in fast_detection.py
+            print("Using local MLflow tracking URI (matches fast_detection.py)")
+        
         # Use the same experiment that fast_detector uses
         mlflow.set_experiment(experiment_name)
         

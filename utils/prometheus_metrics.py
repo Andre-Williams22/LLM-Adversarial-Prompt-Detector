@@ -70,6 +70,17 @@ SYSTEM_MEMORY_USAGE = Gauge(
     'System memory usage as a percentage (0.0 to 1.0)'
 )
 
+# Additional metrics for dashboard compatibility
+CPU_USAGE_PERCENT = Gauge(
+    'cpu_usage_percent',
+    'CPU usage as a percentage (0-100)'
+)
+
+MEMORY_USAGE_PERCENT = Gauge(
+    'memory_usage_percent',
+    'Memory usage as a percentage (0-100)'
+)
+
 MODEL_QUEUE_SIZE = Gauge(
     'model_queue_size',
     'Number of requests waiting in the model queue'
@@ -102,10 +113,16 @@ class SystemMonitor:
             cpu_percent = psutil.cpu_percent(interval=1) / 100.0
             SYSTEM_CPU_USAGE.set(cpu_percent)
             
+            # CPU usage (as percentage 0-100 for dashboard)
+            CPU_USAGE_PERCENT.set(cpu_percent * 100)
+            
             # Memory usage (as percentage 0.0 to 1.0)
             memory = psutil.virtual_memory()
             memory_percent = memory.percent / 100.0
             SYSTEM_MEMORY_USAGE.set(memory_percent)
+            
+            # Memory usage (as percentage 0-100 for dashboard)
+            MEMORY_USAGE_PERCENT.set(memory.percent)
             
             # For now, set queue size to 0 (can be updated when implementing actual queue)
             MODEL_QUEUE_SIZE.set(0)
@@ -247,6 +264,8 @@ __all__ = [
     'CHAT_REQUEST_FAILURES',
     'SYSTEM_CPU_USAGE',
     'SYSTEM_MEMORY_USAGE',
+    'CPU_USAGE_PERCENT',
+    'MEMORY_USAGE_PERCENT',
     'MODEL_QUEUE_SIZE',
     'CONCURRENT_REQUESTS',
     'initialize_metrics',
