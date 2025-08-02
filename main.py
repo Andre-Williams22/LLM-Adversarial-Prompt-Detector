@@ -12,10 +12,32 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import Response
 from utils.fast_detection import FastAdversarialDetector
-from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter, Histogram, Gauge
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 from utils.model_processing import load_models, detect_adversarial_prompt
 from utils.fast_detection import detect_adversarial_prompt_fast
 from utils.mongodb_manager import mongodb_manager
+from utils.prometheus_metrics import (
+    initialize_metrics,
+    track_model_inference,
+    track_chat_request,
+    track_prompt_result,
+    track_concurrent_request_start,
+    track_concurrent_request_end,
+    track_model_error,
+    track_chat_failure,
+    cleanup,
+    # Import specific metrics for direct access where needed
+    MODEL_INFERENCE_DURATION,
+    MODEL_INFERENCE_COUNT,
+    ADVERSARIAL_DETECTIONS,
+    SAFE_PROMPTS,
+    CHAT_REQUESTS,
+    ACTIVE_MODELS,
+    MODEL_INFERENCE_ERRORS,
+    CHAT_REQUEST_FAILURES,
+    CONCURRENT_REQUESTS,
+    system_monitor
+)
 
 # Load environment variables
 load_dotenv()
@@ -63,35 +85,6 @@ def setup_mlflow_experiment():
 # Setup MLflow
 mlflow_available = setup_mlflow_experiment()
 
-# Prometheus metrics
-MODEL_INFERENCE_DURATION = Histogram(
-    'model_inference_duration_seconds',
-    'Time spent on model inference',
-    ['model_name', 'model_type']
-)
-
-MODEL_INFERENCE_COUNT = Counter(
-    'model_inference_total',
-    'Total number of model inferences',
-    ['model_name', 'model_type']
-)
-
-ADVERSARIAL_DETECTIONS = Counter(
-    'adversarial_detections_total',
-    'Total number of adversarial prompts detected',
-    ['model_name']
-)
-
-CHAT_REQUESTS = Counter(
-    'chat_requests_total',
-    'Total number of chat requests processed'
-)
-
-ACTIVE_MODELS = Gauge(
-    'active_models_count',
-    'Number of currently loaded models'
-)
-
 # Import the already-loaded global detector from fast_detection
 from utils.fast_detection import fast_detector
 
@@ -100,8 +93,8 @@ models_loaded = True  # Models are already loaded in fast_detection.py
 models_loading = False
 detectors = {"fast_ensemble": "loaded"}
 
-# Set the Prometheus gauge for active models
-ACTIVE_MODELS.set(4)
+# Initialize Prometheus metrics and system monitoring
+initialize_metrics()
 
 print("✅ Using pre-loaded models from fast_detection.py - ready for instant detection")
 
@@ -120,8 +113,9 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Close MongoDB connection on shutdown"""
+    """Close MongoDB connection and cleanup on shutdown"""
     await mongodb_manager.close()
+    cleanup()  # Cleanup Prometheus monitoring resources
 
 @app.get("/favicon.ico")
 async def favicon():
@@ -269,6 +263,9 @@ def chat_and_detect(user_message, history):
     history = history or []
     history.append(("User", user_message))
     
+    # Track concurrent requests
+    track_concurrent_request_start()
+    
     # Initialize defaults
     bot_response = "An error occurred while processing your request."
     flag_note = "<p style='color:red;'>Processing error</p>"
@@ -279,7 +276,7 @@ def chat_and_detect(user_message, history):
     session_id = str(uuid.uuid4())
 
     # Track chat request
-    CHAT_REQUESTS.inc()
+    track_chat_request()
 
     try:
         # Fast adversarial prompt detection (models are pre-loaded and ready)
@@ -296,12 +293,17 @@ def chat_and_detect(user_message, history):
             # Run detection synchronously - much faster than asyncio.run()
             is_adv, reasoning = fast_detector.detect_adversarial_sync(user_message)
             
+            # Track the prompt result (adversarial vs safe)
+            track_prompt_result(is_adv, model_name="fast_ensemble")
+            
             # Enhanced logging after detection
             decision_icon = "🚨" if is_adv else "✅"
             print(f"🌐 WEB REQUEST COMPLETED: {decision_icon} {'ADVERSARIAL' if is_adv else 'SAFE'} - {reasoning.get('reason', 'Unknown')}", flush=True)
             logger.info(f"Web request completed: {is_adv} - {reasoning.get('reason')}")
             
         except Exception as detection_error:
+            # Track model inference error
+            track_model_error("fast_detector", "detection_failure")
             logger.error(f"Detection failed: {detection_error}")
             # Enhanced fallback with basic keyword detection
             user_message_lower = user_message.lower()
@@ -320,6 +322,9 @@ def chat_and_detect(user_message, history):
                 "threshold": 0.5
             }
             
+            # Track the fallback prompt result
+            track_prompt_result(is_adv, model_name="fallback_detector")
+            
             logger.info(f"Using fallback detection: {is_adv} - {reasoning['reason']}")
         
         detection_duration = time.time() - detection_start
@@ -331,12 +336,13 @@ def chat_and_detect(user_message, history):
         for i, score in enumerate(scores_list):
             if i < len(model_names):
                 model_name = model_names[i]
-                MODEL_INFERENCE_COUNT.labels(model_name=model_name, model_type="fast_detector").inc()
-                MODEL_INFERENCE_DURATION.labels(model_name=model_name, model_type="fast_detector").observe(detection_duration)
-                
-                # Track if adversarial prompt was detected by this model
-                if score > reasoning["threshold"]:
-                    ADVERSARIAL_DETECTIONS.labels(model_name=model_name).inc()
+                is_adversarial_by_model = score > reasoning["threshold"]
+                track_model_inference(
+                    model_name=model_name,
+                    model_type="fast_detector",
+                    duration=detection_duration,
+                    is_adversarial=is_adversarial_by_model
+                )
         
         print(f"🚀 Fast detection completed in {detection_duration:.3f}s")
         print("reasoning", reasoning)
@@ -386,9 +392,15 @@ def chat_and_detect(user_message, history):
                 )
 
     except Exception as e:
+        # Track chat request failure
+        track_chat_failure("general_error")
         bot_response = "An error occurred while processing your request."
         history.append(("Bot", bot_response))
         flag_note = f"<p style='color:orange;font-weight:bold;'>Error: {str(e)}</p>"
+
+    finally:
+        # Always decrement concurrent requests counter
+        track_concurrent_request_end()
 
     end_time = time.time()
     final_time = end_time - start_time
