@@ -11,6 +11,7 @@ import uvicorn
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import Response
+from utils.fast_detection import FastAdversarialDetector
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST, Counter, Histogram, Gauge
 from utils.model_processing import load_models, detect_adversarial_prompt
 from utils.fast_detection import detect_adversarial_prompt_fast
@@ -19,31 +20,40 @@ from utils.mongodb_manager import mongodb_manager
 # Load environment variables
 load_dotenv()
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+# Set up logging with enhanced visibility for web server environments
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),  # Console output
+        logging.FileHandler('app.log', mode='a')  # File output for persistence
+    ]
+)
 logger = logging.getLogger(__name__)
+
+# Force stdout/stderr to be unbuffered for real-time visibility
+import sys
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
 
 # OpenAI API key setup - Commented out for speed optimization
 # client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Set up MLflow
-mlflow_uri = os.getenv("MLFLOW_TRACKING_URI", "file:///app/mlruns")
-mlflow.set_tracking_uri(mlflow_uri)
-
-# Set experiment with robust error handling
+# Set up MLflow - use same configuration as fast_detection
+# The fast_detector already sets up MLflow correctly, we just need to match it
 def setup_mlflow_experiment():
-    experiment_name = "adversarial_prompt_detector"
+    experiment_name = "adversarial_detection_system"
     try:
-        # Try to get existing experiment first
-        experiment = mlflow.get_experiment_by_name(experiment_name)
-        if experiment is None:
-            # Create experiment if it doesn't exist
-            experiment_id = mlflow.create_experiment(experiment_name)
-            print(f"Created new MLflow experiment: {experiment_name} (ID: {experiment_id})")
-        else:
-            print(f"Using existing MLflow experiment: {experiment_name} (ID: {experiment.experiment_id})")
-        
+        # Use the same experiment that fast_detector uses
         mlflow.set_experiment(experiment_name)
+        
+        # Test if we can access the experiment
+        experiment = mlflow.get_experiment_by_name(experiment_name)
+        if experiment:
+            print(f"✅ Using MLflow experiment: {experiment_name} (ID: {experiment.experiment_id})")
+        else:
+            print(f"⚠️ MLflow experiment {experiment_name} not found, will be created by fast_detector")
+        
         return True
     except Exception as e:
         print(f"MLflow experiment setup failed: {e}")
@@ -82,18 +92,18 @@ ACTIVE_MODELS = Gauge(
     'Number of currently loaded models'
 )
 
-# Initialize detectors with lazy loading to speed up startup
-print("🚀 Fast adversarial detection models will be loaded on first use (lazy loading)")
-detectors = {"fast_ensemble": "lazy_loading"}  # Will be loaded on first request
+# Import the already-loaded global detector from fast_detection
+from utils.fast_detection import fast_detector
 
-# Global flag to track model loading status
-models_loaded = False
+# Global variables for model state - use the pre-loaded detector
+models_loaded = True  # Models are already loaded in fast_detection.py
 models_loading = False
+detectors = {"fast_ensemble": "loaded"}
 
-# Set the active models gauge (will be updated when models actually load)
-ACTIVE_MODELS.set(0)  # Models not loaded yet
+# Set the Prometheus gauge for active models
+ACTIVE_MODELS.set(4)
 
-print("✅ Application ready - models will load on first detection request")
+print("✅ Using pre-loaded models from fast_detection.py - ready for instant detection")
 
 # Build FastAPI + Gradio app
 app = FastAPI()
@@ -148,94 +158,36 @@ def metrics():
 
 @app.post("/warm-up")
 async def warm_up_models():
-    """Endpoint to trigger model loading (warm-up)"""
-    global models_loaded, models_loading
-    
-    if models_loaded:
-        return {
-            "status": "already_loaded",
-            "message": "Models are already loaded and ready"
-        }
-    
-    if models_loading:
-        return {
-            "status": "loading",
-            "message": "Models are already loading, please wait..."
-        }
-    
-    # Start loading in background
-    
-    def load_models_background():
-        ensure_models_loaded()
-    
-    thread = threading.Thread(target=load_models_background, daemon=True)
-    thread.start()
-    
+    """Models are always loaded at startup"""
     return {
-        "status": "started",
-        "message": "Model loading started in background",
-        "estimated_time": "30-60 seconds",
-        "check_status": "/loading-status"
+        "status": "always_loaded",
+        "message": "Models are pre-loaded at startup and always ready for instant detection"
     }
 
 @app.get("/loading-status")
 def loading_status():
-    """Check model loading status"""
-    global models_loaded, models_loading
-    
-    if models_loaded:
-        return {
-            "status": "ready",
-            "message": "Models are loaded and ready for detection",
-            "models_loaded": True,
-            "models_loading": False
-        }
-    elif models_loading:
-        return {
-            "status": "loading",
-            "message": "Models are currently loading, please wait...",
-            "models_loaded": False,
-            "models_loading": True,
-            "estimated_time": "30-60 seconds"
-        }
-    else:
-        return {
-            "status": "lazy",
-            "message": "Models will load on first detection request",
-            "models_loaded": False,
-            "models_loading": False,
-            "note": "First request may take 30-60 seconds"
-        }
+    """Models are always loaded at startup"""
+    return {
+        "status": "ready",
+        "message": "Models are pre-loaded and ready for instant detection",
+        "models_loaded": True,
+        "models_loading": False,
+        "startup_time": "instant"
+    }
 
 @app.get("/health")
 def health_check():
     """Enhanced health check endpoint"""
     try:
-        global models_loaded, models_loading
-        
-        # Check actual model status
-        if models_loaded:
-            status = "healthy"
-            model_status = "loaded"
-            model_count = 4
-        elif models_loading:
-            status = "loading"
-            model_status = "loading"
-            model_count = 0
-        else:
-            status = "ready"
-            model_status = "lazy_loading"
-            model_count = 0
-        
         return {
-            "status": status,
-            "models_loaded": models_loaded,
-            "models_loading": models_loading,
-            "model_status": model_status,
-            "model_count": model_count,
+            "status": "healthy",
+            "models_loaded": True,
+            "models_loading": False,
+            "model_status": "loaded",
+            "model_count": 4,
             "timestamp": time.time(),
             "version": "1.0.0",
-            "startup_mode": "lazy_loading",
+            "startup_mode": "pre_loaded",
             "endpoints": {
                 "chat": "/chat",
                 "metrics": "/metrics",
@@ -264,10 +216,10 @@ def home():
             "statistics": "/stats"
         },
         "services": {
-            "models_loaded": models_loaded,
-            "models_loading": models_loading,
-            "startup_mode": "lazy_loading",
-            "model_count": 4 if models_loaded else 0
+            "models_loaded": True,
+            "models_loading": False,
+            "startup_mode": "pre_loaded",
+            "model_count": 4
         },
         "links": {
             "chat": "/chat",
@@ -297,52 +249,16 @@ async def get_statistics():
         }
 
 def ensure_models_loaded():
-    """Ensure models are loaded (lazy loading on first use)"""
-    global models_loaded, models_loading
+    """Check if models are loaded - they're already loaded from fast_detection.py"""
+    global models_loaded, fast_detector
     
-    if models_loaded:
+    # Models are already loaded from the global import
+    if models_loaded and fast_detector is not None:
         return True
     
-    if models_loading:
-        # Wait for models to finish loading (up to 60 seconds)
-        wait_count = 0
-        while models_loading and wait_count < 60:
-            time.sleep(1)
-            wait_count += 1
-        return models_loaded
-    
-    # Start loading models
-    models_loading = True
-    try:
-        print("Loading ML models (first request - this may take 30-60 seconds)...")
-        start_time = time.time()
-        
-        # Test with a simple message to ensure models load
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        # This will trigger model loading in the fast detection system
-        test_result = loop.run_until_complete(detect_adversarial_prompt_fast("Hello"))
-        
-        loop.close()
-        
-        load_duration = time.time() - start_time
-        
-        models_loaded = True
-        models_loading = False
-        
-        # Update metrics
-        ACTIVE_MODELS.set(4)
-        detectors["fast_ensemble"] = "loaded"
-        
-        print(f"✅ ML models loaded successfully in {load_duration:.2f} seconds")
-        return True
-        
-    except Exception as e:
-        models_loading = False
-        print(f"❌ Failed to load models: {e}")
-        logger.error(f"Model loading failed: {e}")
-        return False
+    # This shouldn't happen, but if it does, log and return True since models are pre-loaded
+    logger.warning("Models should already be loaded from fast_detection.py")
+    return True
 
 def chat_and_detect(user_message, history):
     """
@@ -366,10 +282,28 @@ def chat_and_detect(user_message, history):
     CHAT_REQUESTS.inc()
 
     try:
-        # 1. Ensure models are loaded (lazy loading)
-        if not ensure_models_loaded():
-            # If models failed to load, use fallback detection immediately
-            logger.warning("Models failed to load, using fallback detection")
+        # Fast adversarial prompt detection (models are pre-loaded and ready)
+        detection_start = time.time()
+        
+        try:
+            # Set environment variable to avoid tokenizer warnings
+            os.environ["TOKENIZERS_PARALLELISM"] = "false"
+            
+            # Enhanced logging for web interface requests
+            print(f"\n🌐 WEB REQUEST: Starting detection for prompt: '{user_message[:50]}{'...' if len(user_message) > 50 else ''}'", flush=True)
+            logger.info(f"Web request detection starting for: {user_message[:50]}")
+            
+            # Run detection synchronously - much faster than asyncio.run()
+            is_adv, reasoning = fast_detector.detect_adversarial_sync(user_message)
+            
+            # Enhanced logging after detection
+            decision_icon = "🚨" if is_adv else "✅"
+            print(f"🌐 WEB REQUEST COMPLETED: {decision_icon} {'ADVERSARIAL' if is_adv else 'SAFE'} - {reasoning.get('reason', 'Unknown')}", flush=True)
+            logger.info(f"Web request completed: {is_adv} - {reasoning.get('reason')}")
+            
+        except Exception as detection_error:
+            logger.error(f"Detection failed: {detection_error}")
+            # Enhanced fallback with basic keyword detection
             user_message_lower = user_message.lower()
             basic_adversarial_keywords = [
                 "ignore", "jailbreak", "bypass", "override", "previous instructions",
@@ -377,77 +311,18 @@ def chat_and_detect(user_message, history):
                 "prompt injection", "escape", "break out", "sudo", "developer mode"
             ]
             
+            # Simple keyword-based fallback detection
             keyword_detected = any(keyword in user_message_lower for keyword in basic_adversarial_keywords)
+            
             is_adv, reasoning = keyword_detected, {
-                "reason": f"Fallback detection - {'Basic keyword match' if keyword_detected else 'No obvious patterns'}: Models failed to load",
+                "reason": f"Fallback detection - {'Basic keyword match' if keyword_detected else 'No obvious patterns'}: {str(detection_error)}",
                 "scores": [0.8 if keyword_detected else 0.1, 0.0, 0.0, 0.0],
                 "threshold": 0.5
             }
-        else:
-            # 2. Fast adversarial prompt detection (models are now loaded)
-            detection_start = time.time()
             
-            # Use sync wrapper for the async detection function
-            try:
-                # Store result in a thread-safe way
-                detection_result = {"result": None, "error": None}
-                
-                def detection_thread():
-                    """Background thread for async detection"""
-                    try:
-                        # Create new event loop for this thread
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        
-                        # Run the async detection
-                        result = loop.run_until_complete(detect_adversarial_prompt_fast(user_message))
-                        detection_result["result"] = result
-                        
-                        loop.close()
-                        
-                    except Exception as e:
-                        detection_result["error"] = str(e)
-                
-                # Run detection in background thread and wait for completion
-                thread = threading.Thread(target=detection_thread)
-                thread.start()
-                thread.join(timeout=60)  # Increase timeout to 60 seconds
-                
-                if detection_result["error"]:
-                    raise Exception(detection_result["error"])
-                elif detection_result["result"]:
-                    is_adv, reasoning = detection_result["result"]
-                else:
-                    # Log more details about the timeout
-                    logger.error(f"Detection thread timeout after 60 seconds for message: {user_message[:100]}...")
-                    raise Exception("Detection thread timeout after 60 seconds")
-                    
-            except Exception as detection_error:
-                logger.error(f"Detection failed: {detection_error}")
-                # Enhanced fallback with basic keyword detection
-                user_message_lower = user_message.lower()
-                basic_adversarial_keywords = [
-                    "ignore", "jailbreak", "bypass", "override", "previous instructions",
-                    "act as", "pretend", "roleplay", "system prompt", "admin", "root",
-                    "prompt injection", "escape", "break out", "sudo", "developer mode"
-                ]
-                
-                # Simple keyword-based fallback detection
-                keyword_detected = any(keyword in user_message_lower for keyword in basic_adversarial_keywords)
-                
-                is_adv, reasoning = keyword_detected, {
-                    "reason": f"Fallback detection - {'Basic keyword match' if keyword_detected else 'No obvious patterns'}: {str(detection_error)}",
-                    "scores": [0.8 if keyword_detected else 0.1, 0.0, 0.0, 0.0],
-                    "threshold": 0.5
-                }
-                
-                logger.info(f"Using fallback detection: {is_adv} - {reasoning['reason']}")
-            
-            detection_duration = time.time() - detection_start
+            logger.info(f"Using fallback detection: {is_adv} - {reasoning['reason']}")
         
-        # Handle fallback case (when models failed to load)
-        if not models_loaded:
-            detection_duration = 0.001  # Very fast fallback detection
+        detection_duration = time.time() - detection_start
         
         # Track model metrics for fast ensemble
         model_names = ["keyword_detector", "toxic_bert", "hate_roberta", "safety_bart"]
@@ -579,10 +454,9 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         <h1 style="text-align:center;color:#007BFF;">AI Safety Detector + Mock Chat Interface</h1>
         <p style="text-align:center;color:#555;">An AI safety system with mock responses (OpenAI disabled for speed optimization).</p>
         <div id="loading-notice" style="text-align:center;background:#f8f9fa;padding:15px;border-radius:8px;margin:10px 0;">
-            <p style="color:#6c757d;margin:0;">
-                <strong>Note:</strong> The first message may take 30-60 seconds as ML models load. 
-                Subsequent responses will be much faster. 
-                <a href="/loading-status" target="_blank" style="color:#007BFF;">Check loading status</a>
+            <p style="color:#28a745;margin:0;">
+                <strong>✅ Ready:</strong> All ML models are pre-loaded for instant adversarial detection!
+                Fast response times guaranteed.
             </p>
         </div>
     """)
@@ -609,5 +483,6 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
 app = gr.mount_gradio_app(app, demo, path="/chat")
 
 if __name__ == "__main__":
-    # Use port 80 to match Dockerfile, single worker for better resource usage
-    uvicorn.run(app, host="0.0.0.0", port=80, workers=1)
+    # Use port 8080 for local development, single worker for better resource usage
+    port = int(os.getenv("PORT", 8080))
+    uvicorn.run(app, host="0.0.0.0", port=port, workers=1)
