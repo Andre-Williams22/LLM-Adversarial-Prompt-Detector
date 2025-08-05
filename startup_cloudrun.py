@@ -50,7 +50,12 @@ def create_app():
     """Create FastAPI app with optimized startup"""
     from fastapi import FastAPI
     from fastapi.responses import JSONResponse
+    from pydantic import BaseModel
     import gradio as gr
+    
+    # Request model for the detect endpoint
+    class DetectRequest(BaseModel):
+        text: str
     
     # Create app instance
     app = FastAPI(title="Adversarial Prompt Detector")
@@ -96,36 +101,34 @@ def create_app():
                 content={"status": "loading", "message": "Models still loading..."}
             )
     
-    # Import and mount the full app after server starts
-    def mount_full_app():
-        """Mount the full application after models are ready"""
+    # Add a simple detection endpoint that works immediately
+    @app.post("/detect")
+    def detect_simple(request: DetectRequest):
+        """Simple detection endpoint"""
+        if not models_ready:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "loading", "message": "Models still loading..."}
+            )
+        
         try:
-            # Wait for models to be ready or fail
-            timeout = 300  # 5 minutes max
-            start_time = time.time()
-            
-            while models_loading and (time.time() - start_time) < timeout:
-                time.sleep(1)
-            
-            if models_ready:
-                logger.info("🔄 Mounting full application with Gradio interface...")
-                
-                # Import the main application
-                from main import demo
-                
-                # Mount Gradio interface
-                app = gr.mount_gradio_app(app, demo, path="/chat")
-                logger.info("✅ Full application mounted successfully!")
-                
-            else:
-                logger.error("❌ Failed to mount full application - models not ready")
-                
+            from utils.fast_detection import fast_detector
+            result = fast_detector.detect_adversarial_sync(request.text)
+            return {"result": result, "text": request.text}
         except Exception as e:
-            logger.error(f"❌ Error mounting full application: {e}")
+            return JSONResponse(
+                status_code=500,
+                content={"error": str(e)}
+            )
     
-    # Start full app mounting in background
-    mount_thread = threading.Thread(target=mount_full_app, daemon=True)
-    mount_thread.start()
+    # Mount Gradio interface immediately but it will show loading until models are ready
+    try:
+        logger.info("🔄 Setting up Gradio interface...")
+        from main import demo
+        app = gr.mount_gradio_app(app, demo, path="/chat")
+        logger.info("✅ Gradio interface mounted!")
+    except Exception as e:
+        logger.error(f"❌ Error mounting Gradio: {e}")
     
     return app
 
