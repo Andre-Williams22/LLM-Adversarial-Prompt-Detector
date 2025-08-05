@@ -22,8 +22,9 @@ __pycache__/
 logs/
 app.log
 
-# Data files (keep only preprocessed)
+# Data files (keep only preprocessed models)
 data/raw/
+# Keep data/preprocessed/ - contains required ML models
 mlruns/
 wandb/
 notebooks/

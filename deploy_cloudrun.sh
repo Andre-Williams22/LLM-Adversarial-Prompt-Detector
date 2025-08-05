@@ -145,12 +145,13 @@ deploy_manual() {
         --platform managed \
         --region $REGION \
         --allow-unauthenticated \
-        --memory 4Gi \
-        --cpu 2 \
+        --memory 8Gi \
+        --cpu 4 \
         --concurrency 100 \
         --max-instances 10 \
         --min-instances 0 \
-        --timeout 300 \
+        --timeout 900 \
+        --cpu-boost \
         --port 8080 \
         --set-env-vars "TOKENIZERS_PARALLELISM=false,PYTORCH_ENABLE_MPS_FALLBACK=1,HF_HUB_DISABLE_SYMLINKS_WARNING=1"
     
