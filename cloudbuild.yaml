@@ -46,13 +46,13 @@ steps:
       '--min-instances', '1',
       '--timeout', '3600',
       '--cpu-boost',
-      '--port', '8080',
+      '--port', '80',
       '--cpu-boost',
       '--timeout', '3600',
       '--startup-probe-timeout', '600',
       '--startup-probe-period', '30',
       '--startup-probe-failure-threshold', '20',
-      '--set-env-vars', 'TOKENIZERS_PARALLELISM=false,PYTORCH_ENABLE_MPS_FALLBACK=1,HF_HUB_DISABLE_SYMLINKS_WARNING=1,PORT=8080'
+      '--set-env-vars', 'TOKENIZERS_PARALLELISM=false,PYTORCH_ENABLE_MPS_FALLBACK=1,HF_HUB_DISABLE_SYMLINKS_WARNING=1,PORT=80'
     ]
 
 # Build options
