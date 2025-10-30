@@ -81,9 +81,9 @@ def setup_mlflow_experiment():
         # Test if we can access the experiment
         experiment = mlflow.get_experiment_by_name(experiment_name)
         if experiment:
-            print(f"✅ Using MLflow experiment: {experiment_name} (ID: {experiment.experiment_id})")
+            print(f"Using MLflow experiment: {experiment_name} (ID: {experiment.experiment_id})")
         else:
-            print(f"⚠️ MLflow experiment {experiment_name} not found, will be created by fast_detector")
+            print(f"WARNING: MLflow experiment {experiment_name} not found, will be created by fast_detector")
         
         return True
     except Exception as e:
@@ -105,7 +105,7 @@ detectors = {"fast_ensemble": "loaded"}
 # Initialize Prometheus metrics and system monitoring
 initialize_metrics()
 
-print("✅ Using pre-loaded models from fast_detection.py - ready for instant detection")
+print("Using pre-loaded models from fast_detection.py - ready for instant detection")
 
 # Build FastAPI + Gradio app
 app = FastAPI()
@@ -115,9 +115,9 @@ async def startup_event():
     """Initialize MongoDB connection on startup"""
     try:
         await mongodb_manager.connect()
-        logger.info("✅ Application startup complete with MongoDB")
+        logger.info("Application startup complete with MongoDB")
     except Exception as e:
-        logger.error(f"❌ Failed to initialize MongoDB during startup: {e}")
+        logger.error(f"Failed to initialize MongoDB during startup: {e}")
         logger.info("Application will continue without MongoDB logging")
 
 @app.on_event("shutdown")
@@ -296,7 +296,7 @@ def chat_and_detect(user_message, history):
             os.environ["TOKENIZERS_PARALLELISM"] = "false"
             
             # Enhanced logging for web interface requests
-            print(f"\n🌐 WEB REQUEST: Starting detection for prompt: '{user_message[:50]}{'...' if len(user_message) > 50 else ''}'", flush=True)
+            print(f"\nWEB REQUEST: Starting detection for prompt: '{user_message[:50]}{'...' if len(user_message) > 50 else ''}'", flush=True)
             logger.info(f"Web request detection starting for: {user_message[:50]}")
             
             # Run detection synchronously - much faster than asyncio.run()
@@ -306,8 +306,8 @@ def chat_and_detect(user_message, history):
             track_prompt_result(is_adv, model_name="fast_ensemble")
             
             # Enhanced logging after detection
-            decision_icon = "🚨" if is_adv else "✅"
-            print(f"🌐 WEB REQUEST COMPLETED: {decision_icon} {'ADVERSARIAL' if is_adv else 'SAFE'} - {reasoning.get('reason', 'Unknown')}", flush=True)
+            decision_icon = "[ALERT]" if is_adv else "[SAFE]"
+            print(f"WEB REQUEST COMPLETED: {decision_icon} {'ADVERSARIAL' if is_adv else 'SAFE'} - {reasoning.get('reason', 'Unknown')}", flush=True)
             logger.info(f"Web request completed: {is_adv} - {reasoning.get('reason')}")
             
         except Exception as detection_error:
@@ -353,14 +353,14 @@ def chat_and_detect(user_message, history):
                     is_adversarial=is_adversarial_by_model
                 )
         
-        print(f"🚀 Fast detection completed in {detection_duration:.3f}s")
+        print(f"Fast detection completed in {detection_duration:.3f}s")
         print("reasoning", reasoning)
         scores = reasoning["scores"]
         print("scores", scores)
 
         bot_response = ""
         if is_adv:
-            bot_response = "⚠️ Adversarial prompt detected! The request was not processed."
+            bot_response = "Adversarial prompt detected! The request was not processed."
             history.append(("Bot", bot_response))
             flag_note = (
                 f"<p style='color:red;font-weight:bold;'>"
@@ -476,7 +476,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         <p style="text-align:center;color:#555;">An AI safety system with mock responses (OpenAI disabled for speed optimization).</p>
         <div id="loading-notice" style="text-align:center;background:#f8f9fa;padding:15px;border-radius:8px;margin:10px 0;">
             <p style="color:#28a745;margin:0;">
-                <strong>✅ Ready:</strong> All ML models are pre-loaded for instant adversarial detection!
+                <strong>Ready:</strong> All ML models are pre-loaded for instant adversarial detection!
                 Fast response times guaranteed.
             </p>
         </div>

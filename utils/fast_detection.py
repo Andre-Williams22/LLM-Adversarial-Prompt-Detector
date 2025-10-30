@@ -97,12 +97,12 @@ class FastAdversarialDetector:
             experiment = mlflow.get_experiment_by_name("adversarial_detection_system")
             if experiment:
                 tracking_uri = mlflow.get_tracking_uri()
-                print(f"✅ MLflow verified: {tracking_uri}", flush=True)
+                print(f"MLflow verified: {tracking_uri}", flush=True)
                 print(f"   Experiment ID: {experiment.experiment_id}", flush=True)
             else:
-                print("⚠️ MLflow experiment not found, will be created on first run", flush=True)
+                print("WARNING: MLflow experiment not found, will be created on first run", flush=True)
         except Exception as e:
-            print(f"⚠️ MLflow verification failed: {e}", flush=True)
+            print(f"WARNING: MLflow verification failed: {e}", flush=True)
     
     @lru_cache(maxsize=1)
     def load_fast_models(self) -> Dict:
@@ -142,7 +142,7 @@ class FastAdversarialDetector:
         print("  Loading keyword detector...")
         models['keyword_detector'] = self.create_keyword_detector()
         
-        print(f"✅ Loaded {len(models)} optimized models")
+        print(f"Loaded {len(models)} optimized models")
         return models
     
     def create_keyword_detector(self):
@@ -240,7 +240,7 @@ class FastAdversarialDetector:
             total_time = time.time() - start_time
             
             # Enhanced debugging for early exit
-            early_exit_msg = f"🚨 EARLY EXIT TRIGGERED: Keyword score {keyword_score:.4f} > 0.45 threshold"
+            early_exit_msg = f"EARLY EXIT TRIGGERED: Keyword score {keyword_score:.4f} > 0.45 threshold"
             print(early_exit_msg, flush=True)
             logger.warning(early_exit_msg)  # Use warning level for visibility
             
@@ -1013,9 +1013,9 @@ class FastAdversarialDetector:
                 mlflow.set_tag("model_category", model_name.split('_')[0])
                 
                                 # Enhanced MLflow logging information with multiple output methods
-                decision_icon = "🚨" if is_adversarial else "✅"
+                decision_icon = "[ALERT]" if is_adversarial else "[SAFE]"
                 log_message = (
-                    f"📊 MLflow Logged: {model_name}\n"
+                    f"MLflow Logged: {model_name}\n"
                     f"   Run Name: {run_name}\n"
                     f"   Decision: {decision_icon} {'ADVERSARIAL' if is_adversarial else 'SAFE'}\n"
                     f"   Score: {score:.4f} (threshold: {self.threshold})\n"
@@ -1104,10 +1104,10 @@ class FastAdversarialDetector:
                 mlflow.log_text(json.dumps(scores_data, indent=2), "ensemble_details.json")
                 
                 # Enhanced ensemble MLflow logging information with multiple output methods
-                decision_icon = "🚨" if final_decision else "✅"
+                decision_icon = "[ALERT]" if final_decision else "[SAFE]"
                 early_exit_text = " (EARLY EXIT)" if early_exit else ""
                 ensemble_log = (
-                    f"\n🎯 MLflow Logged: ENSEMBLE DECISION{early_exit_text}\n"
+                    f"\nMLflow Logged: ENSEMBLE DECISION{early_exit_text}\n"
                     f"   Run Name: {run_name}\n"
                     f"   Final Decision: {decision_icon} {'ADVERSARIAL' if final_decision else 'SAFE'}\n"
                     f"   Reason: {reason}\n"
@@ -1134,9 +1134,9 @@ class FastAdversarialDetector:
             print(f"Warning: Failed to log ensemble decision: {e}")
 
 # Global instance with startup loading for faster user experience
-print("🚀 Loading adversarial detection models at startup for optimal user experience...")
+print("Loading adversarial detection models at startup for optimal user experience...")
 fast_detector = FastAdversarialDetector(sensitivity_mode="balanced")
-print("✅ All models loaded and ready for instant detection!")
+print("All models loaded and ready for instant detection!")
 
 async def detect_adversarial_prompt_fast(text: str, sensitivity_mode: str = None) -> Tuple[bool, dict]:
     """
@@ -1151,7 +1151,7 @@ async def detect_adversarial_prompt_fast(text: str, sensitivity_mode: str = None
     
     # Create new detector if sensitivity mode changed
     if sensitivity_mode and sensitivity_mode != fast_detector.sensitivity_mode:
-        print(f"🔄 Switching to {sensitivity_mode} sensitivity mode...")
+        print(f"Switching to {sensitivity_mode} sensitivity mode...")
         fast_detector = FastAdversarialDetector(sensitivity_mode=sensitivity_mode)
     
     return await fast_detector.detect_adversarial_fast(text)

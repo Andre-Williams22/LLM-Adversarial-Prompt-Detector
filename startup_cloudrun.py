@@ -28,7 +28,7 @@ def load_models_background():
     global models_ready, models_loading, startup_error
     
     try:
-        logger.info("🚀 Starting background model loading...")
+        logger.info("Starting background model loading...")
         
         # Import and initialize the fast detector
         from utils.fast_detection import fast_detector
