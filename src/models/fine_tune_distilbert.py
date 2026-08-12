@@ -15,7 +15,7 @@ from peft import get_peft_model, LoraConfig, TaskType
 import wandb
 from datetime import datetime
 
-# 📁 Config
+# Config
 MODEL_NAME = "distilbert-base-uncased"
 OUTPUT_DIR = "./outputs/distilbert"
 TRAIN_PATH = "./data/preprocessed/train_data.csv"
@@ -24,11 +24,11 @@ NUM_EPOCHS = 3
 LR = 2e-5
 BATCH_SIZE = 16
 
-# 🕒 Generate unique run name
+# Generate unique run name
 timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
 run_name = f"{MODEL_NAME.replace('/', '-')}-{timestamp}"
 
-# 🟡 Initialize W&B
+# Initialize W&B
 wandb.init(
     project="adversarial-prompt-detector",
     entity="awjrs22",
@@ -41,7 +41,7 @@ wandb.init(
     }
 )
 
-# 🧹 Load dataset
+# Load dataset
 def load_dataset(path):
     df = pd.read_csv(path)
     label_map = {label: i for i, label in enumerate(df["label"].unique())}
@@ -52,7 +52,7 @@ train_dataset, label_map = load_dataset(TRAIN_PATH)
 test_dataset, _ = load_dataset(TEST_PATH)
 NUM_LABELS = len(label_map)
 
-# 🧪 Tokenization
+# Tokenization
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
 def tokenize(example):
@@ -61,7 +61,7 @@ def tokenize(example):
 train_dataset = train_dataset.map(tokenize, batched=True)
 test_dataset = test_dataset.map(tokenize, batched=True)
 
-# 🧠 Load model + PEFT config
+# Load model + PEFT config
 model = AutoModelForSequenceClassification.from_pretrained(
     MODEL_NAME, num_labels=NUM_LABELS
 )
@@ -99,7 +99,7 @@ args = TrainingArguments(
 )
 
 
-# 📈 Metrics
+# Metrics
 def compute_metrics(pred):
     preds = pred.predictions.argmax(-1)
     labels = pred.label_ids
@@ -110,7 +110,7 @@ def compute_metrics(pred):
         "precision": precision_score(labels, preds, average="macro")
     }
 
-# 🧑‍🏫 Trainer
+# Trainer
 trainer = Trainer(
     model=model,
     args=args,
@@ -121,14 +121,14 @@ trainer = Trainer(
     compute_metrics=compute_metrics
 )
 
-# 🔁 Train + Evaluate + Save
+# Train + Evaluate + Save
 trainer.train()
 metrics = trainer.evaluate()
-print("✅ Final Evaluation:", metrics)
+print("Final Evaluation:", metrics)
 
 wandb.log(metrics)
 
-# 💾 Save fine-tuned model
+# Save fine-tuned model
 BEST_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model")
 trainer.save_model(BEST_MODEL_PATH)
 tokenizer.save_pretrained(BEST_MODEL_PATH)

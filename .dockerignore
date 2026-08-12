@@ -1,36 +1,55 @@
+# Keep the image to application code plus requirements. Detection models are
+# pulled from the Hugging Face Hub at build/startup, not baked in from outputs/.
+
 # Python cache and virtual environments
 venv/
 env/
+.venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
 
-
-# ML artifacts and data
+# ML artifacts, experiment tracking and datasets
 mlruns/
+wandb/
 data/
 outputs/
-wandb/
 notebooks/
+live_performance_results/
+
+# Local monitoring stack (runs beside the service, not inside it)
+monitoring/
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
 
 # Development files
 .git/
+.github/
+.gitignore
 .vscode/
 .idea/
 *.md
+docs/
 LICENSE
-.env
-.env.local
-.env.example
+tests/
+deployments/
 
-# Docker files
+# Logs and archives
+*.log
+logs/
+*.tar.gz
+*.mov
+
+# Docker and build files
 Dockerfile
 docker-compose*.yml
+cloudbuild.yaml
 .dockerignore
-
-
 
 # OS files
 .DS_Store

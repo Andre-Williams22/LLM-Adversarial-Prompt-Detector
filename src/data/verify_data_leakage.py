@@ -11,24 +11,24 @@ test_df = pd.read_csv("./data/preprocessed/test_data.csv")
 
 print(f"Train size: {len(train_df)} | Test size: {len(test_df)}")
 
-# 1️⃣ Exact prompt overlap
+# 1Exact prompt overlap
 exact_overlap = set(train_df["prompt"]).intersection(set(test_df["prompt"]))
-print(f"🔁 Exact Overlaps: {len(exact_overlap)}")
+print(f"Exact Overlaps: {len(exact_overlap)}")
 
-# 2️⃣ Fuzzy text similarity (optional: slow on large sets, sample for speed)
+# 2Fuzzy text similarity (optional: slow on large sets, sample for speed)
 sampled_train = train_df["prompt"].sample(n=500, random_state=42).tolist()
 sampled_test = test_df["prompt"].sample(n=500, random_state=42).tolist()
 
 similar_pairs = []
-for t in tqdm(sampled_test, desc="🔍 Checking fuzzy matches"):
+for t in tqdm(sampled_test, desc="Checking fuzzy matches"):
     for tr in sampled_train:
         score = SequenceMatcher(None, t, tr).ratio()
         if score > 0.9:
             similar_pairs.append((t, tr, score))
 
-print(f"🤖 Fuzzy similar pairs > 0.9: {len(similar_pairs)}")
+print(f"Fuzzy similar pairs > 0.9: {len(similar_pairs)}")
 
-# 3️⃣ N-gram frequency bias check
+# 3N-gram frequency bias check
 combined_df = pd.concat([train_df, test_df], ignore_index=True)
 label_map = {label: i for i, label in enumerate(combined_df["label"].unique())}
 combined_df["label_num"] = combined_df["label"].map(label_map)
@@ -42,5 +42,5 @@ X_df["label"] = combined_df["label"]
 means = X_df.groupby("label").mean()
 diff = (means.loc["adversarial"] - means.loc["benign"]).abs().sort_values(ascending=False)
 
-print("\n🔎 Top potential leakage n-grams:")
+print("\nTop potential leakage n-grams:")
 print(diff.head(20))

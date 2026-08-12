@@ -1,43 +1,59 @@
-# Cloud Run Dockerfile
-# Optimized for fast startup and efficient resource usage
+# Production image for the adversarial prompt detector.
+#
+# Model weights are baked in at build time rather than pulled on first boot.
+# That trades ~550MB of image size for a cold start that does not depend on
+# Hugging Face Hub being reachable, and makes the image reproducible.
 
-FROM python:3.10-slim
+FROM python:3.10-slim AS builder
 
-# Set working directory
-WORKDIR /app
+ENV PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    git \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better caching
+WORKDIR /app
 COPY requirements.txt .
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
-# Install Python dependencies (exclude BentoML for faster install)
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+FROM python:3.10-slim AS runtime
 
-# Pre-download models and cache them to reduce startup time
-ENV HF_HOME=/app/.cache/huggingface
-RUN mkdir -p /app/.cache/huggingface
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH=/app \
+    PATH="/opt/venv/bin:$PATH" \
+    HF_HOME=/app/.cache/huggingface \
+    TOKENIZERS_PARALLELISM=false \
+    HF_HUB_DISABLE_SYMLINKS_WARNING=1 \
+    PORT=80
 
-# Create necessary directories
-RUN mkdir -p data/preprocessed logs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd --create-home --uid 1000 appuser
 
-# Set environment variables for production
-ENV PYTHONPATH=/app
-ENV TOKENIZERS_PARALLELISM=false
-ENV PYTORCH_ENABLE_MPS_FALLBACK=1
-ENV HF_HUB_DISABLE_SYMLINKS_WARNING=1
-ENV PORT=80
+COPY --from=builder /opt/venv /opt/venv
 
-# Expose port
+WORKDIR /app
+COPY --chown=appuser:appuser . .
+
+# Warm the Hugging Face cache so the first request does not wait on a download.
+RUN python -c "\
+from transformers import pipeline; \
+[pipeline('text-classification', model=m, device=-1) for m in ( \
+    'unitary/toxic-bert', \
+    'martin-ha/toxic-comment-model', \
+    'distilbert-base-uncased-finetuned-sst-2-english')]" \
+    && chown -R appuser:appuser /app/.cache
+
+USER appuser
+
 EXPOSE 80
 
-# Run the application with optimized startup
-CMD ["python", "-u", "startup_cloudrun.py"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+    CMD curl -fsS "http://localhost:${PORT}/health" || exit 1
+
+CMD ["sh", "-c", "exec uvicorn main:app --host 0.0.0.0 --port ${PORT} --workers 1"]

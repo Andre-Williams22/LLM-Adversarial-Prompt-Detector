@@ -25,4 +25,4 @@ with mlflow.start_run(run_name="register_adapter_checkpoint"):
         artifact_path="electra_adversarial_detector",
         registered_model_name="Electra_Adversarial_Detector",
     )
-    print("✅ Model registered in MLflow!")
+    print("Model registered in MLflow!")

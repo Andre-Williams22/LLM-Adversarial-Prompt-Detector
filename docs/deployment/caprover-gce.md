@@ -81,20 +81,20 @@ gcloud --version
    Name: caprover-server
    Region: us-central1 (or closest to your users)
    Zone: us-central1-a
-   
+
    Machine Configuration:
    - Series: E2 (cost-effective) or N2 (better performance)
    - Machine type: e2-standard-4 (4 vCPUs, 16 GB memory)
-   
+
    Boot disk:
    - Operating system: Ubuntu
    - Version: Ubuntu 20.04 LTS
    - Boot disk type: SSD persistent disk
    - Size: 50 GB (minimum for ML models)
-   
+
    Firewall:
-   ✅ Allow HTTP traffic
-   ✅ Allow HTTPS traffic
+   Allow HTTP traffic
+   Allow HTTPS traffic
    ```
 
 4. **Click "Create"**
@@ -285,7 +285,7 @@ ls -la requirements.txt
 
    ```
    App Name: adversarial-detector
-   ✅ Has persistent data
+   Has persistent data
    Instance Count: 1
    ```
 
@@ -311,26 +311,25 @@ ls -la requirements.txt
 In the CapRover app settings, add these environment variables:
 
 ```bash
-# Core Application Settings
-NODE_ENV=production
+# Core application settings
 PORT=80
-
-# AI/ML Configuration
-OPENAI_API_KEY=your_openai_api_key_here
-HF_TOKEN=your_huggingface_token
-MODEL_PATH=/app/outputs/electra/best_model/
-
-# Database Configuration
-MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/adversarial_detection
-
-# Monitoring
-MLFLOW_TRACKING_URI=http://mlflow.yourdomain.com
-PROMETHEUS_URL=http://prometheus.yourdomain.com
-
-# Security
 LOG_LEVEL=INFO
-DEBUG=false
+
+# Detection policy: high, balanced, or conservative
+FAST_DETECTION_SENSITIVITY=balanced
+EAGER_MODEL_LOAD=false
+
+# Interaction logging (optional)
+MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/adversarial_detection
+MONGODB_DATABASE=adversarial_detection
+
+# Experiment tracking (optional)
+MLFLOW_TRACKING_URI=http://mlflow.yourdomain.com
 ```
+
+The full list of supported variables is in `.env.example`. Every one is
+optional: with none set, the service still loads its models and classifies
+prompts, and only the optional integrations are disabled.
 
 ### Step 4: Configure Health Check
 
@@ -361,7 +360,7 @@ DEBUG=false
    ```bash
    # Navigate to prometheus deployment
    cd deployments/prometheus-deployment
-   
+
    # Create TAR package
    tar -czf prometheus-deployment.tar.gz *
    ```
@@ -383,7 +382,7 @@ DEBUG=false
    ```bash
    # Navigate to grafana deployment
    cd deployments/grafana-with-dashboard
-   
+
    # Create TAR package
    tar -czf grafana-deployment.tar.gz *
    ```
@@ -393,15 +392,15 @@ DEBUG=false
    # Security (IMPORTANT: Change these!)
    GF_SECURITY_ADMIN_USER=admin
    GF_SECURITY_ADMIN_PASSWORD=your_secure_password_here
-   
+
    # Data source
    GF_DATABASE_TYPE=sqlite3
    GF_DATABASE_PATH=/var/lib/grafana/grafana.db
-   
+
    # Server settings
    GF_SERVER_ROOT_URL=https://grafana.yourdomain.com
    GF_SERVER_SERVE_FROM_SUB_PATH=false
-   
+
    # Authentication
    GF_AUTH_ANONYMOUS_ENABLED=false
    GF_USERS_ALLOW_SIGN_UP=false

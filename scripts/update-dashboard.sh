@@ -18,13 +18,13 @@ if ! curl -s http://localhost:3000 &> /dev/null; then
 fi
 
 # Check if dashboard JSON file exists
-if [ ! -f "grafana/dashboards/adversarial-detector-dashboard.json" ]; then
+if [ ! -f "monitoring/grafana/dashboards/adversarial-detector-dashboard.json" ]; then
     echo "Error: Dashboard JSON file not found."
     exit 1
 fi
 
 # Wrap the dashboard JSON in the required format for Grafana API
-jq '{dashboard: ., overwrite: true}' grafana/dashboards/adversarial-detector-dashboard.json > /tmp/dashboard-wrapped.json
+jq '{dashboard: ., overwrite: true}' monitoring/grafana/dashboards/adversarial-detector-dashboard.json > /tmp/dashboard-wrapped.json
 
 # Import the dashboard
 response=$(curl -s -X POST -H "Content-Type: application/json" -u admin:admin123 \
@@ -36,7 +36,7 @@ echo "Response: $response"
 # Check if the update was successful
 if echo "$response" | jq -e '.status == "success"' > /dev/null; then
     echo "Dashboard update successful!"
-    echo "🌐 View at: http://localhost:3000/d/adversarial-prompt-detector"
+    echo "View at: http://localhost:3000/d/adversarial-prompt-detector"
 else
     echo "Dashboard update failed. Check the response above for details."
     exit 1

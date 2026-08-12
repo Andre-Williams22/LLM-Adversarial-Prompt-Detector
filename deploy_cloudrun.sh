@@ -1,312 +1,226 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#
+# Deploy the adversarial prompt detector to Google Cloud Run.
+#
+# The recommended path is a Cloud Build trigger on push, which runs the same
+# cloudbuild.yaml this script submits. Use this script for one-off deploys,
+# for the first deploy before a trigger exists, or for inspecting a live
+# service. Run "./deploy_cloudrun.sh help" for the full command list.
 
-# Google Cloud Run Deployment Script
-# Automated deployment for Adversarial Prompt Detector
+set -euo pipefail
 
-set -e
-
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC=    echo ""
-    echo "🛡️ Adversarial Prompt Detector - Google Cloud Run Deployment"
-    echo "=============================================================="
-    echo ""
-    echo "📋 DEPLOYMENT OPTIONS:"
-    echo ""
-    echo "🌟 OPTION A: GitHub Integration (RECOMMENDED - No CLI needed!)"
-    echo "   • Go to: https://console.cloud.google.com"
-    echo "   • Cloud Build → Triggers → Create Trigger"
-    echo "   • Connect your GitHub repo"
-    echo "   • Use cloudbuild.yaml configuration"
-    echo "   • Push to deploy automatically!"
-    echo ""
-    echo "🔧 OPTION B: CLI Deployment (what this script does)"
-    echo "   • Requires Google Cloud SDK installed"
-    echo "   • Manual control over deployment process"
-    echo "   • Good for testing and development"
-    echo ""3[0m'
+NC='\033[0m'
 
-print_status() { echo -e "${BLUE}[INFO]${NC} $1"; }
+print_status()  { echo -e "${BLUE}[INFO]${NC} $1"; }
 print_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
-print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+print_error()   { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 
-# Configuration
-PROJECT_ID=${PROJECT_ID:-""}
-REGION=${REGION:-"us-central1"}
-SERVICE_NAME="adversarial-prompt-detector"
-IMAGE_NAME="gcr.io/${PROJECT_ID}/${SERVICE_NAME}"
+# Defaults match cloudbuild.yaml so the two deployment paths cannot drift.
+PROJECT_ID="${PROJECT_ID:-}"
+REGION="${REGION:-us-west1}"
+SERVICE_NAME="${SERVICE_NAME:-adversarial-prompt-detector}"
+REPOSITORY="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/llm-adversarial-prompt-detector"
+IMAGE_NAME="${REPOSITORY}/${SERVICE_NAME}"
 
-# Function to check prerequisites
 check_prerequisites() {
-    print_status "Checking prerequisites..."
-    
-    # Check if gcloud is installed
+    print_status "Checking prerequisites"
+
     if ! command -v gcloud &> /dev/null; then
-        print_error "Google Cloud SDK is not installed!"
-        print_status "Install from: https://cloud.google.com/sdk/docs/install"
+        print_error "Google Cloud SDK is not installed"
+        print_status "Install from https://cloud.google.com/sdk/docs/install"
         exit 1
     fi
-    
-    # Check if docker is installed
-    if ! command -v docker &> /dev/null; then
-        print_error "Docker is not installed!"
-        print_status "Install from: https://docs.docker.com/get-docker/"
-        exit 1
-    fi
-    
-    # Check if logged into gcloud
+
     if ! gcloud auth list --filter=status:ACTIVE --format="value(account)" | grep -q "@"; then
-        print_error "Not logged into Google Cloud!"
-        print_status "Run: gcloud auth login"
+        print_error "Not logged into Google Cloud. Run: gcloud auth login"
         exit 1
     fi
-    
-    print_success "Prerequisites check passed!"
+
+    print_success "Prerequisites satisfied"
 }
 
-# Function to setup project
+require_docker() {
+    if ! command -v docker &> /dev/null; then
+        print_error "Docker is not installed. See https://docs.docker.com/get-docker/"
+        exit 1
+    fi
+}
+
 setup_project() {
     if [ -z "$PROJECT_ID" ]; then
-        print_status "No PROJECT_ID set. Please provide your Google Cloud Project ID:"
-        read -p "Project ID: " PROJECT_ID
+        read -r -p "Google Cloud Project ID: " PROJECT_ID
         export PROJECT_ID
+        REPOSITORY="${REGION}-docker.pkg.dev/${PROJECT_ID}/cloud-run-source-deploy/llm-adversarial-prompt-detector"
+        IMAGE_NAME="${REPOSITORY}/${SERVICE_NAME}"
     fi
-    
-    print_status "Setting up Google Cloud project: $PROJECT_ID"
-    
-    # Set the project
-    gcloud config set project $PROJECT_ID
-    
-    # Enable required APIs
-    print_status "Enabling required Google Cloud APIs..."
+
+    print_status "Configuring project ${PROJECT_ID}"
+    gcloud config set project "$PROJECT_ID"
+
+    print_status "Enabling required APIs"
     gcloud services enable \
         cloudbuild.googleapis.com \
         run.googleapis.com \
-        containerregistry.googleapis.com \
         artifactregistry.googleapis.com
-    
-    print_success "Project setup complete!"
+
+    print_success "Project configured"
 }
 
-# Function to build and deploy using Cloud Build
+report_endpoints() {
+    local url
+    url=$(gcloud run services describe "$SERVICE_NAME" --region="$REGION" \
+        --format="value(status.url)")
+
+    print_success "Deployed to ${url}"
+    echo ""
+    echo "  Chat interface: ${url}/chat"
+    echo "  Detect API:     ${url}/detect"
+    echo "  Health:         ${url}/health"
+    echo "  Readiness:      ${url}/ready"
+    echo "  Metrics:        ${url}/metrics"
+    echo "  API docs:       ${url}/docs"
+    echo ""
+}
+
 deploy_with_cloud_build() {
-    print_status "🚀 Deploying with Cloud Build..."
-    
-    # Submit build to Cloud Build
+    print_status "Submitting build to Cloud Build"
     gcloud builds submit \
         --config cloudbuild.yaml \
-        --substitutions _REGION=$REGION,_SERVICE_NAME=$SERVICE_NAME \
+        --substitutions "_REGION=${REGION},_SERVICE_NAME=${SERVICE_NAME}" \
         .
-    
-    if [ $? -eq 0 ]; then
-        print_success "✅ Cloud Build deployment successful!"
-        
-        # Get the service URL
-        SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)")
-        
-        print_success "🌐 Your application is deployed!"
-        echo ""
-        echo "📱 Chat Interface: $SERVICE_URL/chat"
-        echo "🔍 Health Check: $SERVICE_URL/health"
-        echo "📊 Metrics: $SERVICE_URL/metrics"
-        echo "📖 API Docs: $SERVICE_URL"
-        echo ""
-        
-    else
-        print_error "❌ Cloud Build deployment failed!"
-        exit 1
-    fi
+    print_success "Cloud Build deployment complete"
+    report_endpoints
 }
 
-# Function to build and deploy manually
 deploy_manual() {
-    print_status "🔨 Building Docker image locally..."
-    
-    # Build the image
-    docker build -f Dockerfile.cloudrun -t $IMAGE_NAME:latest .
-    
-    print_status "📤 Pushing image to Container Registry..."
-    
-    # Configure Docker to use gcloud as credential helper
-    gcloud auth configure-docker
-    
-    # Push the image
-    docker push $IMAGE_NAME:latest
-    
-    print_status "🚀 Deploying to Cloud Run..."
-    
-    # Deploy to Cloud Run
-    gcloud run deploy $SERVICE_NAME \
-        --image $IMAGE_NAME:latest \
+    require_docker
+
+    print_status "Building image locally"
+    docker build -t "${IMAGE_NAME}:latest" .
+
+    print_status "Pushing to Artifact Registry"
+    gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+    docker push "${IMAGE_NAME}:latest"
+
+    print_status "Deploying to Cloud Run"
+    gcloud run deploy "$SERVICE_NAME" \
+        --image "${IMAGE_NAME}:latest" \
         --platform managed \
-        --region $REGION \
+        --region "$REGION" \
         --allow-unauthenticated \
-        --memory 8Gi \
+        --port 80 \
+        --memory 4Gi \
         --cpu 4 \
-        --concurrency 100 \
-        --max-instances 10 \
-        --min-instances 0 \
-        --timeout 900 \
         --cpu-boost \
-        --port 8080 \
-        --set-env-vars "TOKENIZERS_PARALLELISM=false,PYTORCH_ENABLE_MPS_FALLBACK=1,HF_HUB_DISABLE_SYMLINKS_WARNING=1"
-    
-    if [ $? -eq 0 ]; then
-        print_success "✅ Manual deployment successful!"
-        
-        # Get the service URL
-        SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)")
-        
-        print_success "🌐 Your application is deployed!"
-        echo ""
-        echo "📱 Chat Interface: $SERVICE_URL/chat"
-        echo "🔍 Health Check: $SERVICE_URL/health"
-        echo "📊 Metrics: $SERVICE_URL/metrics"
-        echo "📖 API Docs: $SERVICE_URL"
-        echo ""
-        
-    else
-        print_error "❌ Manual deployment failed!"
-        exit 1
-    fi
+        --concurrency 100 \
+        --min-instances 1 \
+        --max-instances 12 \
+        --timeout 3600 \
+        --set-env-vars "TOKENIZERS_PARALLELISM=false,PYTORCH_ENABLE_MPS_FALLBACK=1,HF_HUB_DISABLE_SYMLINKS_WARNING=1,PORT=80"
+
+    print_success "Manual deployment complete"
+    report_endpoints
 }
 
-# Function to setup monitoring
 setup_monitoring() {
-    print_status "Setting up Cloud Monitoring..."
-    
-    # Enable monitoring API
+    print_status "Enabling Cloud Monitoring"
     gcloud services enable monitoring.googleapis.com
-    
-    print_status "Monitoring setup complete. Check Google Cloud Console for metrics."
+    print_success "Monitoring enabled; view metrics in the Cloud Console"
 }
 
-# Function to show logs
 show_logs() {
-    print_status "📋 Recent application logs:"
-    gcloud run services logs read $SERVICE_NAME --region=$REGION --limit=50
+    gcloud run services logs read "$SERVICE_NAME" --region="$REGION" --limit=50
 }
 
-# Function to check service status
 check_status() {
-    print_status "Checking service status..."
-    
-    # Get service info
-    gcloud run services describe $SERVICE_NAME --region=$REGION
-    
-    # Test health endpoint
-    SERVICE_URL=$(gcloud run services describe $SERVICE_NAME --region=$REGION --format="value(status.url)")
-    
-    print_status "Testing health endpoint..."
-    curl -s "$SERVICE_URL/health" | jq . || echo "Health check failed"
+    gcloud run services describe "$SERVICE_NAME" --region="$REGION"
+
+    local url
+    url=$(gcloud run services describe "$SERVICE_NAME" --region="$REGION" \
+        --format="value(status.url)")
+
+    print_status "Testing ${url}/health"
+    curl -fsS "${url}/health" || print_error "Health check failed"
 }
 
-# Function to cleanup resources
 cleanup() {
-    print_warning "⚠️  This will delete your Cloud Run service and images!"
-    read -p "Are you sure? (y/N): " confirm
-    
-    if [[ $confirm == [yY] || $confirm == [yY][eE][sS] ]]; then
-        print_status "Cleaning up resources..."
-        
-        # Delete Cloud Run service
-        gcloud run services delete $SERVICE_NAME --region=$REGION --quiet
-        
-        # Delete images
-        gcloud container images delete $IMAGE_NAME:latest --quiet
-        
-        print_success "Cleanup complete!"
+    print_warning "This deletes the Cloud Run service and its images."
+    read -r -p "Continue? (y/N): " confirm
+
+    if [[ "$confirm" =~ ^[yY]([eE][sS])?$ ]]; then
+        gcloud run services delete "$SERVICE_NAME" --region="$REGION" --quiet
+        gcloud artifacts docker images delete "${IMAGE_NAME}" --quiet --delete-tags
+        print_success "Cleanup complete"
     else
-        print_status "Cleanup cancelled."
+        print_status "Cleanup cancelled"
     fi
 }
 
-# Main function
+usage() {
+    cat <<'USAGE'
+Adversarial Prompt Detector - Cloud Run deployment
+
+Usage: ./deploy_cloudrun.sh [COMMAND]
+
+Commands:
+  setup          Configure the project and enable required APIs
+  deploy         Deploy via Cloud Build (recommended)
+  deploy-manual  Build locally, push, and deploy with gcloud
+  monitoring     Enable Cloud Monitoring
+  logs           Tail recent service logs
+  status         Describe the service and probe /health
+  cleanup        Delete the service and its images
+  all            setup + deploy + monitoring
+  help           Show this message
+
+Environment:
+  PROJECT_ID     Google Cloud project (prompted if unset)
+  REGION         Deployment region (default: us-west1)
+  SERVICE_NAME   Cloud Run service name (default: adversarial-prompt-detector)
+
+Examples:
+  PROJECT_ID=my-project ./deploy_cloudrun.sh all
+  ./deploy_cloudrun.sh status
+
+For continuous deployment, point a Cloud Build trigger at cloudbuild.yaml
+instead of running this script on every change.
+USAGE
+}
+
 main() {
-    echo ""
-    echo "🛡️  Adversarial Prompt Detector - Google Cloud Run Deployment"
-    echo "=============================================================="
-    echo ""
-    
     case "${1:-help}" in
-        "setup")
+        setup)
             check_prerequisites
             setup_project
             ;;
-        "deploy")
+        deploy)
             check_prerequisites
             setup_project
             deploy_with_cloud_build
             ;;
-        "deploy-manual")
+        deploy-manual)
             check_prerequisites
             setup_project
             deploy_manual
             ;;
-        "monitoring")
-            setup_monitoring
-            ;;
-        "logs")
-            show_logs
-            ;;
-        "status")
-            check_status
-            ;;
-        "cleanup")
-            cleanup
-            ;;
-        "all")
+        monitoring) setup_monitoring ;;
+        logs)       show_logs ;;
+        status)     check_status ;;
+        cleanup)    cleanup ;;
+        all)
             check_prerequisites
             setup_project
             deploy_with_cloud_build
             setup_monitoring
-            print_success "🎉 Complete deployment finished!"
+            print_success "Deployment finished"
             ;;
-        "help"|*)
-            echo ""
-            echo "🛡️ Adversarial Prompt Detector - Google Cloud Run Deployment"
-            echo ""
-            echo "🌟 EASIEST WAY (No CLI needed):"
-            echo "   1. Go to: https://console.cloud.google.com"
-            echo "   2. Cloud Build → Triggers → Create Trigger"
-            echo "   3. Connect your GitHub repository"
-            echo "   4. Use 'cloudbuild.yaml' as configuration"
-            echo "   5. Push code to auto-deploy!"
-            echo ""
-            echo "🔧 CLI DEPLOYMENT (this script):"
-            echo "Usage: $0 [COMMAND]"
-            echo ""
-            echo "Commands:"
-            echo "  setup         Setup Google Cloud project and APIs"
-            echo "  deploy        Deploy using Cloud Build (recommended)"
-            echo "  deploy-manual Deploy manually with local Docker build"
-            echo "  monitoring    Setup Cloud Monitoring"
-            echo "  logs          Show recent application logs"
-            echo "  status        Check service status and test endpoints"
-            echo "  cleanup       Delete Cloud Run service and images"
-            echo "  all           Complete setup and deployment"
-            echo "  help          Show this help"
-            echo ""
-            echo "Examples:"
-            echo "  PROJECT_ID=my-project $0 all        # Complete deployment"
-            echo "  $0 deploy                           # Deploy only"
-            echo "  $0 logs                             # View logs"
-            echo "  $0 status                           # Check status"
-            echo ""
-            echo "Prerequisites for CLI:"
-            echo "  - Google Cloud SDK: https://cloud.google.com/sdk/docs/install"
-            echo "  - Docker (for manual deployment): https://docs.docker.com/get-docker/"
-            echo "  - PROJECT_ID environment variable or interactive input"
-            echo ""
-            echo "💡 TIP: Use GitHub integration for the easiest experience!"
-            echo ""
-            ;;
+        help|*) usage ;;
     esac
 }
 
-# Run main with all arguments
 main "$@"
