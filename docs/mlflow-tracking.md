@@ -6,7 +6,7 @@ This document describes the comprehensive MLflow logging implementation for the 
 
 ## Implementation Summary
 
-### ✅ What Was Fixed
+### What Was Fixed
 
 1. **Synchronous Detection Logging**: Added complete MLflow logging to `detect_adversarial_sync()` method
 2. **Experiment Consistency**: Fixed experiment name inconsistency - all runs now use `adversarial_detection_system`
@@ -15,21 +15,21 @@ This document describes the comprehensive MLflow logging implementation for the 
 5. **Timing Precision**: Individual model inference times are tracked separately
 6. **Error Handling**: Fallback scenarios are also logged to MLflow
 
-### 🏗️ Logging Structure
+### Logging Structure
 
 ```
-📁 adversarial_detection_system (Single Experiment)
-├── 🔍 Individual Model Runs
+adversarial_detection_system (Single Experiment)
+├── Individual Model Runs
 │   ├── keyword_detector_YYYY-MM-DD_HH-MM-SS
 │   ├── toxic_classifier_YYYY-MM-DD_HH-MM-SS
 │   ├── hate_classifier_YYYY-MM-DD_HH-MM-SS
 │   └── safety_classifier_YYYY-MM-DD_HH-MM-SS
 │
-└── 🎯 Ensemble Decision Runs
+└── Ensemble Decision Runs
     └── ensemble_decision_YYYY-MM-DD_HH-MM-SS
 ```
 
-### 📊 Individual Model Run Data
+### Individual Model Run Data
 
 Each individual model logs:
 
@@ -54,7 +54,7 @@ Each individual model logs:
 - `detection_outcome`: "adversarial" or "safe"
 - `model_category`: Model type category
 
-### 🎯 Ensemble Decision Run Data
+### Ensemble Decision Run Data
 
 Ensemble decisions log:
 
@@ -92,7 +92,7 @@ Ensemble decisions log:
 
 ```python
 # Run the summary script to see recent activity
-python mlflow_logging_summary.py
+python scripts/mlflow_logging_summary.py
 ```
 
 ### MLflow UI
@@ -135,12 +135,12 @@ The logging is automatic and doesn't require any changes to the API usage.
 ## Verification
 
 The implementation has been tested and verified:
-- ✅ Individual model runs are logged
-- ✅ Ensemble decisions are logged
-- ✅ Both sync and async methods include logging
-- ✅ Experiment consistency maintained
-- ✅ Proper timing and scoring data captured
-- ✅ Error scenarios are handled and logged
+- Individual model runs are logged
+- Ensemble decisions are logged
+- Both sync and async methods include logging
+- Experiment consistency maintained
+- Proper timing and scoring data captured
+- Error scenarios are handled and logged
 
 ## Next Steps
 

@@ -3,21 +3,30 @@ __pycache__/
 *.py[cod]
 *$py.class
 
-# custom
+# OS and editor noise
 .DS_Store
+Thumbs.db
+.claude/
+
+# Datasets and experiment tracking output (reproduced by scripts/, not committed)
 /data
 /mlruns
 /wandb
+/logs
+live_performance_results/
 
-
-# folder specific files
+# Platform-specific deployment bundles built locally
 deployments/
-deployments/grafana/
-deployments/prometheus/
-deployments/mlflow/
 
-.env.template 
-.env.example
+# Local secrets. .env.example is committed as the template.
+.env
+.env.*
+!.env.example
+
+# Large local media (demo recordings, screen captures)
+*.mov
+*.mp4
+*.tar.gz
 
 # C extensions
 *.so
@@ -190,9 +199,9 @@ cython_debug/
 .abstra/
 
 # Visual Studio Code
-#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore 
+#  Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore
 #  that can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
-#  and can be added to the global gitignore or merged into this file. However, if you prefer, 
+#  and can be added to the global gitignore or merged into this file. However, if you prefer,
 #  you could uncomment the following to ignore the enitre vscode folder
 # .vscode/
 

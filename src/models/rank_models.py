@@ -34,9 +34,9 @@ df = pd.DataFrame(data)
 df = df.sort_values(by=METRIC, ascending=False)
 
 # Show leaderboard
-print("\n🏆 Model Leaderboard:")
+print("\nModel Leaderboard:")
 print(df[["name", "model", "accuracy", "f1", "precision", "recall", "url"]])
 
 # Optionally save
 df.to_csv("model_leaderboard.csv", index=False)
-print("\n📁 Saved as model_leaderboard.csv")
+print("\nSaved as model_leaderboard.csv")

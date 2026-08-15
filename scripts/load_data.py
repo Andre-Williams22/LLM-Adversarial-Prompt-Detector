@@ -26,4 +26,4 @@ df_combined = df_combined.sample(frac=1, random_state=42).reset_index(drop=True)
 
 # Save to processed folder
 df_combined.to_csv("data/processed/wildjailbreak_cleaned.csv", index=False)
-print("✅ Combined and cleaned WildJailbreak dataset saved to wildjailbreak_cleaned.csv")
+print("Combined and cleaned WildJailbreak dataset saved to wildjailbreak_cleaned.csv")

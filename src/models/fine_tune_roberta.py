@@ -15,7 +15,7 @@ from peft import get_peft_model, LoraConfig, TaskType
 import wandb
 from datetime import datetime
 
-# 📁 Paths & Config
+# Paths & Config
 MODEL_NAME = "roberta-base"
 OUTPUT_DIR = "./outputs/roberta"
 TRAIN_PATH = "./data/preprocessed/train_data.csv"
@@ -24,11 +24,11 @@ NUM_EPOCHS = 3
 LR = 2e-5
 BATCH_SIZE = 16
 
-# 🕒 Generate unique run name
+# Generate unique run name
 timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
 run_name = f"{MODEL_NAME.replace('/', '-')}-{timestamp}"
 
-# 🟡 Initialize W&B for tracking (uses your existing project)
+# Initialize W&B for tracking (uses your existing project)
 wandb.init(
     project="adversarial-prompt-detector",  # your existing project
     entity="awjrs22",                        # your W&B username
@@ -41,7 +41,7 @@ wandb.init(
     }
 )
 
-# 🧹 Load and preprocess data
+# Load and preprocess data
 def load_dataset(path):
     df = pd.read_csv(path)
     label_map = {label: i for i, label in enumerate(df["label"].unique())}
@@ -52,7 +52,7 @@ train_dataset, label_map = load_dataset(TRAIN_PATH)
 test_dataset, _ = load_dataset(TEST_PATH)
 NUM_LABELS = len(label_map)
 
-# 🧪 Tokenization
+# Tokenization
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 
 def tokenize(example):
@@ -61,7 +61,7 @@ def tokenize(example):
 train_dataset = train_dataset.map(tokenize, batched=True)
 test_dataset = test_dataset.map(tokenize, batched=True)
 
-# 🧠 Load model + PEFT config
+# Load model + PEFT config
 model = AutoModelForSequenceClassification.from_pretrained(
     MODEL_NAME, num_labels=NUM_LABELS
 )
@@ -74,7 +74,7 @@ peft_config = LoraConfig(
 )
 model = get_peft_model(model, peft_config)
 
-# ⚙️ Training setup
+# Training setup
 # args = TrainingArguments(
 #     output_dir=OUTPUT_DIR,
 #     save_strategy="epoch",
@@ -108,7 +108,7 @@ args = TrainingArguments(
     greater_is_better=True,  # Ensure correct comparison
 )
 
-# 🧪 Metrics
+# Metrics
 def compute_metrics(pred):
     preds = pred.predictions.argmax(-1)
     labels = pred.label_ids
@@ -119,7 +119,7 @@ def compute_metrics(pred):
         "recall": recall_score(labels, preds, average="macro"),  # Added recall
     }
 
-# 🧑‍🏫 Trainer
+# Trainer
 trainer = Trainer(
     model=model,
     args=args,
@@ -130,15 +130,15 @@ trainer = Trainer(
     compute_metrics=compute_metrics
 )
 
-# 🔁 Train + Evaluate + Save
+# Train + Evaluate + Save
 trainer.train()
 metrics = trainer.evaluate()
-print("✅ Final Evaluation:", metrics)
+print("Final Evaluation:", metrics)
 
 # Log final metrics to W&B
 wandb.log(metrics)
 
-# 💾 Save best model for reuse
+# Save best model for reuse
 BEST_MODEL_PATH = os.path.join(OUTPUT_DIR, "best_model")
 trainer.save_model(BEST_MODEL_PATH)
 tokenizer.save_pretrained(BEST_MODEL_PATH)

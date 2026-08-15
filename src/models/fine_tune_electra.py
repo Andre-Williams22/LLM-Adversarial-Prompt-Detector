@@ -38,7 +38,7 @@ class SaveBestF1Callback(TrainerCallback):
 # === Start training ===
 start = time.time()
 
-# 📁 Paths and config
+# Paths and config
 MODEL_NAME      = "google/electra-small-discriminator"
 OUTPUT_DIR      = "./outputs/electra"
 TRAIN_PATH      = "./data/preprocessed/train_data.csv"
@@ -50,7 +50,7 @@ BATCH_SIZE      = 16
 SAVE_STEPS      = 1000
 LABEL_SMOOTHING = 0.1
 
-# 🕒 W&B init
+# W&B init
 run_name = f"electra-f1-checkpoint-{datetime.now():%Y%m%d-%H%M%S}"
 wandb.init(
     project="adversarial-prompt-detector",
@@ -59,7 +59,7 @@ wandb.init(
     config={"model": MODEL_NAME, "epochs": NUM_EPOCHS, "lr": LR, "batch_size": BATCH_SIZE}
 )
 
-# 🧹 Load datasets
+# Load datasets
 def load_dataset(path):
     df = pd.read_csv(path)
     label_map = {label: i for i, label in enumerate(df["label"].unique())}
@@ -70,13 +70,13 @@ train_ds, label_map = load_dataset(TRAIN_PATH)
 valid_ds, _       = load_dataset(VALID_PATH)
 NUM_LABELS        = len(label_map)
 
-# 🧪 Tokenization
+# Tokenization
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 def tokenize(ex): return tokenizer(ex["prompt"], truncation=True, padding="max_length")
 train_ds = train_ds.map(tokenize, batched=True)
 valid_ds = valid_ds.map(tokenize, batched=True)
 
-# 🧠 Model setup
+# Model setup
 torch_dtype = "float32"
 model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME, num_labels=NUM_LABELS)
 peft_cfg = LoraConfig(
@@ -86,7 +86,7 @@ peft_cfg = LoraConfig(
 )
 model = get_peft_model(model, peft_cfg)
 
-# ⚙️ TrainingArguments (no load_best_model...)
+# TrainingArguments (no load_best_model...)
 args = TrainingArguments(
     output_dir=OUTPUT_DIR,
     eval_strategy="steps",
@@ -109,7 +109,7 @@ args = TrainingArguments(
     label_names=["label"]
 )
 
-# 📈 Metrics
+# Metrics
 def compute_metrics(pred):
     labels = pred.label_ids
     preds  = pred.predictions.argmax(-1)
@@ -123,7 +123,7 @@ def compute_metrics(pred):
         "f1": f1_score(labels, preds, average="macro")
     }
 
-# 🧑‍🏫 Trainer with F1 callback
+# Trainer with F1 callback
 trainer = Trainer(
     model=model,
     args=args,
@@ -135,19 +135,19 @@ trainer = Trainer(
     callbacks=[SaveBestF1Callback(OUTPUT_DIR)]
 )
 
-# 🔁 Train & Eval
+# Train & Eval
 trainer.train()
 val_metrics = trainer.evaluate()
-print("✅ Validation:", val_metrics)
+print("Validation:", val_metrics)
 
-# 🧪 Hard Test Eval
+# Hard Test Eval
 hard_df = pd.read_csv(HARD_TEST_PATH)
 test_ds = Dataset.from_pandas(hard_df)
 test_ds = test_ds.map(tokenize, batched=True)
 test_ds = test_ds.map(lambda ex: {"label": label_map[ex["label"]]}, batched=False)
 hard_metrics = trainer.evaluate(eval_dataset=test_ds, metric_key_prefix="hard_test")
-print("🧪 Hard Test:", hard_metrics)
+print("Hard Test:", hard_metrics)
 
-# 💾 Model saved by callback; final path:
-print("🥇 Best F1 checkpoint in:", OUTPUT_DIR)
-print("🕒 Total time:", time.time() - start)
+# Model saved by callback; final path:
+print("Best F1 checkpoint in:", OUTPUT_DIR)
+print("Total time:", time.time() - start)
