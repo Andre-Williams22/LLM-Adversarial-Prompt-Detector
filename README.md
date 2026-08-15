@@ -120,39 +120,24 @@ Environment variables and their defaults are in [.env.example](.env.example).
 
 Where this system falls short today, and what I would build next in each case.
 
-**Add an output-side classifier.** Screening is input-side only, so a jailbreak
-that survives the filter is unconstrained thereafter. The natural next step is a
-streaming classifier on the model's output that can halt a completion in
-progress, which is what makes the constitutional-classifier approach effective
-rather than merely layered.
-
-**Calibrate the thresholds instead of hand-tuning them.** The current values were
-set by inspection on observed traffic. `src/evaluation/threshold_calibration.py`
-is the starting point: fit them against a labelled set to hit an explicit target
-false-positive rate, and publish the resulting ROC curve so the operating point
-is a defended choice rather than an assertion.
-
-**Evaluate against an adaptive adversary.** The system has not been tested
-against an attacker who can query it and iterate, which is the only test that
-really counts for a safeguard. Running it against HarmBench and a PAIR-style
-automated red-teaming loop would produce the first honest robustness number for
-this project.
-
-**Serve the fine-tuned models.** `src/` contains a complete training pipeline on
-WildJailbreak — DistilBERT, ELECTRA, and RoBERTa, with deduplication and leakage
-verification — but the serving path still uses off-the-shelf classifiers.
-Wiring the fine-tuned detector into the ensemble and A/B testing it against the
-current stack is the highest-value change available.
-
-**Replace sentiment as a safety proxy.** The safety stage uses an SST-2
-sentiment model; negative sentiment correlates with adversarial framing but is
-not the same thing. That substitution was a latency compromise and a purpose-
-trained classifier should take its place.
-
-**Extend beyond English and beyond single prompts.** Every stage is
-English-trained, and each prompt is judged in isolation, so an attack split
-across several benign-looking turns is not detected. Multilingual detectors and
-session-level state would close both gaps.
+- **Add an output-side classifier.** Screening is input-side only, so anything
+  that gets past the filter is unconstrained. A streaming check on the model's
+  output would close that gap.
+- **Calibrate the thresholds.** They are hand-tuned by inspection today.
+  `src/evaluation/threshold_calibration.py` would fit them to a target
+  false-positive rate on labelled data.
+- **Evaluate against an adaptive adversary.** The system has never faced an
+  attacker who can query it and iterate. HarmBench and a PAIR-style loop would
+  give it a real robustness number.
+- **Serve the fine-tuned models.** `src/` holds a complete WildJailbreak
+  training pipeline the serving path never uses. Wiring it in and A/B testing
+  it is the highest-value change available.
+- **Replace sentiment as a safety proxy.** The safety stage uses an SST-2
+  sentiment model as a latency compromise, but negative sentiment is not
+  adversarial intent. A purpose-trained classifier belongs there.
+- **Extend beyond English and single prompts.** Every stage is English-trained
+  and judges each prompt in isolation, so an attack split across several benign
+  turns goes undetected.
 
 Full discussion of each, including how dual-use terms are handled, is in
 [docs/detection-policy.md](docs/detection-policy.md).
