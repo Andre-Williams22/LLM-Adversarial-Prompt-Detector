@@ -1,6 +1,6 @@
 # LLM Adversarial Prompt Detector
 
-A compact, production-ready input-side filter that screens prompts for
+A compact, AI Control production-ready project with input filters that screen prompts for
 jailbreaks and prompt injection before they reach a language model. Decisions
 are versioned and test-enforced so blocked prompts are reproducible and auditable.
 
