@@ -1,4 +1,4 @@
-# LLM Adversarial Prompt Classifier - AI Control 
+# LLM Adversarial Prompt Classifier - AI Control Project
 
 A compact, production-ready project with input filters that screen prompts for
 jailbreaks and prompt injection before they reach a language model. Decisions
